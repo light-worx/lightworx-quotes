@@ -1,0 +1,203 @@
+/* Container and Header */
+.quote-search-sidebar {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow: hidden;
+}
+
+.quote-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 8px;
+}
+
+/* Add Button */
+.quote-add-btn {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    font-size: 1.2em;
+}
+
+.quote-add-btn:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+/* Form Styling */
+.quote-form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.quote-form-input {
+    width: 100%;
+    font-size: 0.85em;
+    background-color: var(--background-primary);
+}
+
+textarea.quote-form-input {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.quote-save-btn {
+    width: 100%;
+    background-color: var(--btn-color-success, #2a7b32);
+    color: white;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+/* Autocomplete Suggestion Dropdowns */
+.suggest-container {
+    position: relative;
+    width: 100%;
+}
+
+.suggestion-drop {
+    position: absolute;
+    z-index: 1000;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--background-primary-alt);
+    border: 1px solid var(--background-modifier-border-focus);
+    border-radius: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+    box-shadow: var(--shadow-l);
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.85em;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-accent);
+}
+
+/* Search Input */
+.quote-search-input {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+/* Results List */
+.quote-search-results {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.quote-item {
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    background-color: var(--background-primary-alt);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.quote-item:hover {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-secondary);
+}
+
+.quote-text {
+    font-size: 0.95em;
+    font-style: italic;
+    line-height: 1.5;
+    margin-bottom: 10px;
+    color: var(--text-normal);
+}
+
+/* Metadata Row (Tags & Author) */
+.quote-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 8px;
+}
+
+.quote-tag-container {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.quote-tag-badge {
+    background-color: var(--background-modifier-border);
+    color: var(--text-muted);
+    font-size: 0.7em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-family: var(--font-interface);
+    font-weight: 500;
+}
+
+.quote-item:hover .quote-tag-badge {
+    background-color: var(--text-accent);
+    color: var(--text-on-accent);
+}
+
+.quote-author {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-style: normal;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+.quote-usage-row {
+    margin-top: 8px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--background-modifier-border);
+}
+
+.quote-usage-text {
+    font-size: 0.75em;
+    color: var(--text-faint);
+    font-family: var(--font-monospace);
+    display: block;
+    text-align: left;
+}
+
+.quote-item:hover .quote-usage-text {
+    color: var(--text-muted);
+}
