@@ -1,203 +1,326 @@
-/* Container and Header */
-.quote-search-sidebar {
-    padding: 10px;
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+
+.qs-sidebar {
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     height: 100%;
     overflow: hidden;
 }
 
-.quote-header {
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.qs-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding-bottom: 6px;
     border-bottom: 1px solid var(--background-modifier-border);
-    padding-bottom: 8px;
+    flex-shrink: 0;
 }
 
-/* Add Button */
-.quote-add-btn {
+.qs-header h4 {
+    margin: 0;
+    font-size: 0.9em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* ── Add Button ─────────────────────────────────────────────────────────── */
+
+.qs-add-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
     background-color: var(--interactive-accent);
     color: var(--text-on-accent);
-    border-radius: 50%;
-    width: 26px;
-    height: 26px;
-    padding: 0;
+    font-size: 1.1em;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border: none;
-    font-size: 1.2em;
+    transition: background-color 0.15s, transform 0.15s;
+    flex-shrink: 0;
 }
 
-.quote-add-btn:hover {
+.qs-add-btn:hover {
     background-color: var(--interactive-accent-hover);
+    transform: scale(1.1);
 }
 
-/* Form Styling */
-.quote-form-container {
+/* ── Add Form ───────────────────────────────────────────────────────────── */
+
+.qs-form {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px;
+    gap: 6px;
+    padding: 10px;
     background: var(--background-secondary);
     border-radius: 6px;
-    margin-bottom: 10px;
     border: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+    /* Animate open/close */
+    animation: qs-slide-down 0.15s ease;
 }
 
-.quote-form-input {
+@keyframes qs-slide-down {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.qs-input {
     width: 100%;
     font-size: 0.85em;
     background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    color: var(--text-normal);
+    box-sizing: border-box;
+    transition: border-color 0.15s;
 }
 
-textarea.quote-form-input {
-    min-height: 80px;
+.qs-input:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.qs-textarea {
+    min-height: 72px;
     resize: vertical;
+    line-height: 1.45;
 }
 
-.quote-save-btn {
-    width: 100%;
-    background-color: var(--btn-color-success, #2a7b32);
-    color: white;
-    font-weight: 600;
-    margin-top: 4px;
-}
-
-/* Autocomplete Suggestion Dropdowns */
-.suggest-container {
+.qs-field {
     position: relative;
     width: 100%;
 }
 
-.suggestion-drop {
+.qs-save-btn {
+    width: 100%;
+    padding: 6px 0;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    font-size: 0.82em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    margin-top: 2px;
+}
+
+.qs-save-btn:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+/* ── Autocomplete Dropdown ──────────────────────────────────────────────── */
+
+.qs-suggest-drop {
     position: absolute;
     z-index: 1000;
-    top: 100%;
+    top: calc(100% + 2px);
     left: 0;
     right: 0;
     background: var(--background-primary-alt);
     border: 1px solid var(--background-modifier-border-focus);
     border-radius: 4px;
-    max-height: 150px;
+    max-height: 140px;
     overflow-y: auto;
-    box-shadow: var(--shadow-l);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.suggestion-item {
-    padding: 8px 12px;
+.qs-suggest-item {
+    padding: 6px 10px;
     cursor: pointer;
-    font-size: 0.85em;
+    font-size: 0.82em;
     border-bottom: 1px solid var(--background-modifier-border);
+    color: var(--text-normal);
 }
 
-.suggestion-item:last-child {
+.qs-suggest-item:last-child {
     border-bottom: none;
 }
 
-.suggestion-item:hover {
+.qs-suggest-item:hover {
     background-color: var(--background-modifier-hover);
     color: var(--text-accent);
 }
 
-/* Search Input */
-.quote-search-input {
+/* ── Search Input ───────────────────────────────────────────────────────── */
+
+.qs-search {
     width: 100%;
-    margin-bottom: 5px;
+    font-size: 0.85em;
+    padding: 6px 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    box-sizing: border-box;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
 }
 
-/* Results List */
-.quote-search-results {
-    flex-grow: 1;
+.qs-search:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+/* ── Results List ───────────────────────────────────────────────────────── */
+
+.qs-results {
+    flex: 1 1 0;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: 2px;
 }
 
-.quote-item {
-    padding: 12px;
-    margin-bottom: 12px;
-    border-radius: 8px;
+.qs-empty {
+    padding: 16px 0;
+    text-align: center;
+    font-size: 0.82em;
+    color: var(--text-faint);
+}
+
+/* ── Quote Card ─────────────────────────────────────────────────────────── */
+
+.qs-item {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
     background-color: var(--background-primary-alt);
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s ease;
+    transition: border-color 0.15s, background-color 0.15s;
 }
 
-.quote-item:hover {
+.qs-item:hover {
     border-color: var(--interactive-accent);
     background-color: var(--background-secondary);
 }
 
-.quote-text {
-    font-size: 0.95em;
+.qs-text {
+    font-size: 0.88em;
     font-style: italic;
     line-height: 1.5;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: var(--text-normal);
 }
 
-/* Metadata Row (Tags & Author) */
-.quote-meta-row {
+/* ── Meta Row (tags + author) ───────────────────────────────────────────── */
+
+.qs-meta {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     border-top: 1px solid var(--background-modifier-border);
-    padding-top: 8px;
+    padding-top: 6px;
 }
 
-.quote-tag-container {
+.qs-tags {
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
 }
 
-.quote-tag-badge {
+.qs-tag {
     background-color: var(--background-modifier-border);
     color: var(--text-muted);
     font-size: 0.7em;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-family: var(--font-interface);
+    padding: 2px 7px;
+    border-radius: 10px;
     font-weight: 500;
+    transition: background-color 0.15s, color 0.15s;
 }
 
-.quote-item:hover .quote-tag-badge {
-    background-color: var(--text-accent);
+.qs-item:hover .qs-tag {
+    background-color: var(--interactive-accent);
     color: var(--text-on-accent);
 }
 
-.quote-author {
-    font-size: 0.8em;
+.qs-attribution {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 0;
+}
+
+.qs-author {
+    font-size: 0.78em;
     font-weight: 600;
     color: var(--text-muted);
     font-style: normal;
+    white-space: nowrap;
 }
 
-/* Utilities */
-.hidden {
-    display: none !important;
+.qs-source {
+    font-size: 0.72em;
+    color: var(--text-faint);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
 }
 
-.quote-usage-row {
-    margin-top: 8px;
-    padding-top: 4px;
+.qs-item:hover .qs-source {
+    color: var(--text-muted);
+}
+
+/* ── Usage Row ──────────────────────────────────────────────────────────── */
+
+.qs-usage {
+    margin-top: 6px;
+    padding-top: 5px;
     border-top: 1px dashed var(--background-modifier-border);
 }
 
-.quote-usage-text {
-    font-size: 0.75em;
+.qs-usage-text {
+    font-size: 0.72em;
     color: var(--text-faint);
     font-family: var(--font-monospace);
     display: block;
-    text-align: left;
 }
 
-.quote-item:hover .quote-usage-text {
+.qs-item:hover .qs-usage-text {
     color: var(--text-muted);
+}
+
+/* ── Utility ────────────────────────────────────────────────────────────── */
+
+/* Use qs- prefix to avoid clashing with Obsidian's own .hidden class */
+.qs-hidden {
+    display: none !important;
+}
+
+/* ── Copy toast ─────────────────────────────────────────────────────────── */
+
+.qs-toast {
+    margin-top: 6px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-size: 0.72em;
+    font-family: var(--font-monospace);
+    animation: qs-toast-in 0.12s ease, qs-toast-out 0.3s ease 1.5s forwards;
+}
+
+@keyframes qs-toast-in {
+    from { opacity: 0; transform: translateY(-3px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes qs-toast-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
