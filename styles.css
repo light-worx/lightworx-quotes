@@ -20,6 +20,12 @@
     flex-shrink: 0;
 }
 
+.qs-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
 .qs-header h4 {
     margin: 0;
     font-size: 0.9em;
@@ -27,6 +33,13 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
+}
+
+.qs-count {
+    font-size: 0.72em;
+    font-weight: 500;
+    color: var(--text-faint);
+    font-family: var(--font-monospace);
 }
 
 /* ── Add Button ─────────────────────────────────────────────────────────── */

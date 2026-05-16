@@ -75,6 +75,7 @@ class QuoteSearchView extends ItemView {
 
     private currentQuery = '';
     private resultsEl: HTMLElement | null = null;
+    private countEl: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: QuoteSearchPlugin) {
         super(leaf);
@@ -267,6 +268,7 @@ class QuoteSearchView extends ItemView {
     private renderResults(query: string) {
         if (!this.resultsEl) return;
         if (!this.cacheValid) this.rebuildCache();
+        if (this.countEl) this.countEl.setText(`${this.quoteCache.length}`);
 
         const resultsEl = this.resultsEl;
         resultsEl.empty();
@@ -355,7 +357,7 @@ class QuoteSearchView extends ItemView {
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
         const yamlSource = source ? `\nsource: "${source}"` : '';
-        const content = `---\ntype: quote\nquote: "${quote.replace(/"/g, '\\"')}"\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}`;
+        const content = `---\ntype: quote\nquote: "${quote.replace(/"/g, '\\"')}"\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}\n\n{{author}} {{source}}`;
         await this.app.vault.create(`${folder}/${Date.now()}.md`, content);
         this.invalidateCache();
     }
@@ -410,7 +412,10 @@ class QuoteSearchView extends ItemView {
 
         // Header
         const header = container.createDiv({ cls: 'qs-header' });
-        header.createEl('h4', { text: 'Quotes' });
+        const titleWrap = header.createDiv({ cls: 'qs-title-wrap' });
+        titleWrap.createEl('h4', { text: 'Quotes' });
+        const countEl = titleWrap.createSpan({ cls: 'qs-count', text: '' });
+        this.countEl = countEl;
         const addBtn = header.createEl('button', { text: '+', cls: 'qs-add-btn', attr: { 'aria-label': 'Add quote' } });
 
         // Add form (hidden by default)
@@ -474,6 +479,7 @@ class QuoteSearchView extends ItemView {
         if (this.searchDebounce) clearTimeout(this.searchDebounce);
         if (this.vaultDebounce) clearTimeout(this.vaultDebounce);
         this.resultsEl = null;
+        this.countEl = null;
         this.quoteCache = [];
     }
 }
