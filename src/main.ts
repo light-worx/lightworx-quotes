@@ -303,8 +303,11 @@ class QuoteSearchView extends ItemView {
                     if (this.searchEl) {
                         this.searchEl.value = label;
                         this.searchEl.focus();
+                        // Keep clear button visibility in sync
+                        this.searchEl.dispatchEvent(new Event('input'));
+                    } else {
+                        this.scheduleSearchRender(label);
                     }
-                    this.scheduleSearchRender(label);
                 });
             });
             const attribution = item.createDiv({ cls: 'qs-attribution' });
@@ -469,14 +472,28 @@ class QuoteSearchView extends ItemView {
             this.renderResults(this.currentQuery);
         };
 
-        // Search input + results container
-        const searchInput = container.createEl('input', {
+        // Search input + clear button
+        const searchWrap = container.createDiv({ cls: 'qs-search-wrap' });
+        const searchInput = searchWrap.createEl('input', {
             type: 'text', placeholder: '🔍  Search quotes…', cls: 'qs-search'
         });
+        const clearBtn = searchWrap.createEl('button', { cls: 'qs-search-clear qs-hidden', attr: { 'aria-label': 'Clear search' } });
+        clearBtn.innerHTML = '&#x2715;'; // ✕
+
         this.searchEl = searchInput;
         this.resultsEl = container.createDiv({ cls: 'qs-results' });
 
-        searchInput.addEventListener('input', () => this.scheduleSearchRender(searchInput.value));
+        searchInput.addEventListener('input', () => {
+            clearBtn.toggleClass('qs-hidden', searchInput.value === '');
+            this.scheduleSearchRender(searchInput.value);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearBtn.addClass('qs-hidden');
+            searchInput.focus();
+            this.scheduleSearchRender('');
+        });
 
         // Initial render
         this.rebuildCache();
