@@ -259,6 +259,17 @@
     color: var(--text-on-accent);
 }
 
+.qs-tag-clickable {
+    cursor: pointer;
+}
+
+.qs-tag-clickable:hover {
+    background-color: var(--interactive-accent-hover) !important;
+    color: var(--text-on-accent) !important;
+    transform: scale(1.05);
+    transition: transform 0.1s ease;
+}
+
 .qs-attribution {
     display: flex;
     flex-direction: column;

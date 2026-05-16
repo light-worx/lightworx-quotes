@@ -76,6 +76,7 @@ class QuoteSearchView extends ItemView {
     private currentQuery = '';
     private resultsEl: HTMLElement | null = null;
     private countEl: HTMLElement | null = null;
+    private searchEl: HTMLInputElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: QuoteSearchPlugin) {
         super(leaf);
@@ -294,7 +295,18 @@ class QuoteSearchView extends ItemView {
 
             const meta = item.createDiv({ cls: 'qs-meta' });
             const tagWrap = meta.createDiv({ cls: 'qs-tags' });
-            tags.forEach(tag => tagWrap.createSpan({ text: tag.replace(/^#/, ''), cls: 'qs-tag' }));
+            tags.forEach(tag => {
+                const label = tag.replace(/^#/, '');
+                const badge = tagWrap.createSpan({ text: label, cls: 'qs-tag qs-tag-clickable' });
+                badge.addEventListener('click', (e) => {
+                    e.stopPropagation(); // prevent item copy handler firing
+                    if (this.searchEl) {
+                        this.searchEl.value = label;
+                        this.searchEl.focus();
+                    }
+                    this.scheduleSearchRender(label);
+                });
+            });
             const attribution = item.createDiv({ cls: 'qs-attribution' });
             if (authorClean) attribution.createSpan({ text: `— ${authorClean}`, cls: 'qs-author' });
             if (sourceClean) attribution.createSpan({ text: sourceClean, cls: 'qs-source' });
@@ -461,6 +473,7 @@ class QuoteSearchView extends ItemView {
         const searchInput = container.createEl('input', {
             type: 'text', placeholder: '🔍  Search quotes…', cls: 'qs-search'
         });
+        this.searchEl = searchInput;
         this.resultsEl = container.createDiv({ cls: 'qs-results' });
 
         searchInput.addEventListener('input', () => this.scheduleSearchRender(searchInput.value));
@@ -480,6 +493,7 @@ class QuoteSearchView extends ItemView {
         if (this.vaultDebounce) clearTimeout(this.vaultDebounce);
         this.resultsEl = null;
         this.countEl = null;
+        this.searchEl = null;
         this.quoteCache = [];
     }
 }
