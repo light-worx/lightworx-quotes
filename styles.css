@@ -337,3 +337,15 @@
     from { opacity: 1; }
     to   { opacity: 0; }
 }
+
+/* ── Settings folder suggest ────────────────────────────────────────────── */
+
+/* Obsidian's .setting-item-control needs overflow visible so the dropdown
+   isn't clipped by the settings panel layout */
+.settings-tab-active .setting-item-control {
+    overflow: visible;
+}
+
+.settings-tab-active .qs-suggest-drop {
+    min-width: 260px;
+}

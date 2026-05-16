@@ -490,41 +490,109 @@ class QuoteSettingTab extends PluginSettingTab {
     plugin: QuoteSearchPlugin;
     constructor(app: App, plugin: QuoteSearchPlugin) { super(app, plugin); this.plugin = plugin; }
 
+    /** All unique folder paths in the vault, sorted alphabetically. */
+    private getFolderList(): string[] {
+        const folders = new Set<string>();
+        this.app.vault.getMarkdownFiles().forEach(f => {
+            // Add every ancestor folder segment of each file's path
+            const parts = f.path.split('/');
+            parts.pop(); // remove filename
+            let accumulated = '';
+            for (const part of parts) {
+                accumulated = accumulated ? `${accumulated}/${part}` : part;
+                folders.add(accumulated);
+            }
+        });
+        return [...folders].sort((a, b) => a.localeCompare(b));
+    }
+
+    /**
+     * Attach a folder-autocomplete dropdown to a Setting's text input.
+     * We reach into the Setting's control element to find the <input>,
+     * then append a suggestion drop beneath it.
+     */
+    private attachFolderSuggest(
+        setting: Setting,
+        onChange: (value: string) => Promise<void>
+    ) {
+        const inputEl = setting.controlEl.querySelector('input') as HTMLInputElement;
+        if (!inputEl) return;
+
+        // Wrap input in a relative-positioned container so the dropdown anchors correctly
+        const wrapper = inputEl.parentElement!;
+        wrapper.style.position = 'relative';
+        wrapper.style.flex = '1';
+
+        const drop = wrapper.createDiv({ cls: 'qs-suggest-drop qs-hidden' });
+
+        const close = () => drop.addClass('qs-hidden');
+
+        inputEl.addEventListener('input', () => {
+            const val = inputEl.value.trim().toLowerCase();
+            if (!val) { close(); return; }
+
+            const matches = this.getFolderList()
+                .filter(f => f.toLowerCase().includes(val))
+                .slice(0, 12);
+
+            if (matches.length === 0) { close(); return; }
+
+            drop.empty();
+            drop.removeClass('qs-hidden');
+            matches.forEach(folder => {
+                const item = drop.createDiv({ text: folder, cls: 'qs-suggest-item' });
+                item.addEventListener('mousedown', async (e) => {
+                    e.preventDefault();
+                    inputEl.value = folder;
+                    close();
+                    inputEl.focus();
+                    await onChange(folder);
+                });
+            });
+        });
+
+        inputEl.addEventListener('blur', () => setTimeout(close, 150));
+    }
+
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Quote Search Settings' });
 
-        new Setting(containerEl)
+        const s1 = new Setting(containerEl)
             .setName('Quotes folder')
             .setDesc('Folder where quote notes are stored.')
             .addText(text => text
                 .setPlaceholder('Quotes')
                 .setValue(this.plugin.settings.quotesFolder)
                 .onChange(async (v) => { this.plugin.settings.quotesFolder = v; await this.plugin.saveSettings(); }));
+        this.attachFolderSuggest(s1, async (v) => { this.plugin.settings.quotesFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
+        const s2 = new Setting(containerEl)
             .setName('Authors folder')
             .setDesc('Folder containing author notes (used for autocomplete).')
             .addText(text => text
                 .setPlaceholder('Authors')
                 .setValue(this.plugin.settings.authorsFolder)
                 .onChange(async (v) => { this.plugin.settings.authorsFolder = v; await this.plugin.saveSettings(); }));
+        this.attachFolderSuggest(s2, async (v) => { this.plugin.settings.authorsFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
+        const s3 = new Setting(containerEl)
             .setName('Sermons folder')
             .setDesc('Folder containing sermon notes (used for usage tracking).')
             .addText(text => text
                 .setPlaceholder('Sermons')
                 .setValue(this.plugin.settings.sermonsFolder)
                 .onChange(async (v) => { this.plugin.settings.sermonsFolder = v; await this.plugin.saveSettings(); }));
+        this.attachFolderSuggest(s3, async (v) => { this.plugin.settings.sermonsFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
+        const s4 = new Setting(containerEl)
             .setName('Sources folder')
             .setDesc('Folder containing source notes — books, articles, etc. (used for autocomplete).')
             .addText(text => text
                 .setPlaceholder('Sources')
                 .setValue(this.plugin.settings.sourcesFolder)
                 .onChange(async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); }));
+        this.attachFolderSuggest(s4, async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
     }
 }
