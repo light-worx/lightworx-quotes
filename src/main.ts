@@ -799,10 +799,10 @@ class MigrationConfirmModal extends Modal {
                     .replace(REMOVE_BQ, '');
 
                 // ── Decide new body ─────────────────────────────────────────
-                // If the existing body is only template placeholders ({{...}})
-                // or is empty, replace it entirely with the quote + attribution.
-                // Otherwise keep the existing body (user may have edited it).
-                const bodyIsTemplate = !existingBody || /^[\\s>*_]*\{\{[^}]+\}\}/.test(existingBody);
+                // Replace the body if it is empty OR contains any {{placeholder}}
+                // text (the old embed-metadata template format). Any body that
+                // doesn't contain {{ is assumed to be real content and is kept.
+                const bodyIsTemplate = !existingBody.trim() || existingBody.includes('{{');
                 const newBody = bodyIsTemplate
                     ? quoteText + attributionLine
                     : existingBody;
