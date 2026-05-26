@@ -78,7 +78,6 @@
     border-radius: 6px;
     border: 1px solid var(--background-modifier-border);
     flex-shrink: 0;
-    /* Animate open/close */
     animation: qs-slide-down 0.15s ease;
 }
 
@@ -176,7 +175,7 @@
 .qs-search {
     width: 100%;
     font-size: 0.85em;
-    padding: 6px 28px 6px 10px; /* right padding leaves room for clear btn */
+    padding: 6px 28px 6px 10px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 4px;
     background-color: var(--background-primary);
@@ -234,7 +233,7 @@
     border-radius: 6px;
     background-color: var(--background-primary-alt);
     cursor: pointer;
-    border: 1px solid transparent;
+    border: 1px solid var(--background-modifier-border);
     transition: border-color 0.15s, background-color 0.15s;
 }
 
@@ -247,7 +246,7 @@
     font-size: 0.88em;
     font-style: italic;
     line-height: 1.5;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     color: var(--text-normal);
 }
 
@@ -259,8 +258,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 6px;
-    border-top: 1px solid var(--background-modifier-border);
-    padding-top: 6px;
+    padding-top: 4px;
 }
 
 .qs-tags {
@@ -328,9 +326,7 @@
 /* ── Usage Row ──────────────────────────────────────────────────────────── */
 
 .qs-usage {
-    margin-top: 6px;
-    padding-top: 5px;
-    border-top: 1px dashed var(--background-modifier-border);
+    margin-top: 4px;
 }
 
 .qs-usage-text {
@@ -346,56 +342,16 @@
 
 /* ── Utility ────────────────────────────────────────────────────────────── */
 
-/* Use qs- prefix to avoid clashing with Obsidian's own .hidden class */
 .qs-hidden {
     display: none !important;
 }
 
-/* ── Copy toast ─────────────────────────────────────────────────────────── */
-
-.qs-toast {
-    margin-top: 6px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    background-color: var(--interactive-accent);
-    color: var(--text-on-accent);
-    font-size: 0.72em;
-    font-family: var(--font-monospace);
-    animation: qs-toast-in 0.12s ease, qs-toast-out 0.3s ease 1.5s forwards;
-}
-
-@keyframes qs-toast-in {
-    from { opacity: 0; transform: translateY(-3px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes qs-toast-out {
-    from { opacity: 1; }
-    to   { opacity: 0; }
-}
-
 /* ── Settings folder suggest ────────────────────────────────────────────── */
 
-/* Obsidian's .setting-item-control needs overflow visible so the dropdown
-   isn't clipped by the settings panel layout */
 .settings-tab-active .setting-item-control {
     overflow: visible;
 }
 
 .settings-tab-active .qs-suggest-drop {
     min-width: 260px;
-}
-
-/* ── Migration modal ────────────────────────────────────────────────────── */
-
-.qs-migrate-warning {
-    color: var(--text-warning);
-    font-size: 0.85em;
-}
-
-.qs-migrate-btns {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 16px;
 }
