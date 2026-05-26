@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile, Notice } from 'obsidian';
 
 export const VIEW_TYPE_QUOTE_SEARCH = "quote-search-view";
 
@@ -373,8 +373,10 @@ class QuoteSearchView extends ItemView {
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
         const yamlSource = source ? `\nsource: "${source}"` : '';
         const content = `---\ntype: quote\nquote: "${quote.replace(/"/g, '\\"')}"\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}\n\n{{author}} {{source}}`;
-        await this.app.vault.create(`${folder}/${Date.now()}.md`, content);
+        const fileName = `${Date.now()}`;
+        await this.app.vault.create(`${folder}/${fileName}.md`, content);
         this.invalidateCache();
+        return fileName;
     }
 
     // ── Autocomplete ──────────────────────────────────────────────────────────
@@ -465,11 +467,14 @@ class QuoteSearchView extends ItemView {
 
         saveBtn.onclick = async () => {
             if (!qInput.value.trim()) return;
-            await this.createNewQuoteFile(qInput.value.trim(), aInput.value.trim(), sInput.value.trim(), tInput.value.trim());
+            const fileName = await this.createNewQuoteFile(qInput.value.trim(), aInput.value.trim(), sInput.value.trim(), tInput.value.trim());
             qInput.value = ''; aInput.value = ''; sInput.value = ''; tInput.value = '';
             form.addClass('qs-hidden');
             addBtn.setText('+');
             this.renderResults(this.currentQuery);
+            const embedCode = `![[${fileName}]]`;
+            await navigator.clipboard.writeText(embedCode);
+            new Notice(`Copied ${embedCode}`);
         };
 
         // Search input + clear button
