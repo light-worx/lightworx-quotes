@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile, Notice } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile, Notice, Modal } from 'obsidian';
 
 export const VIEW_TYPE_QUOTE_SEARCH = "quote-search-view";
 
@@ -199,41 +199,59 @@ class QuoteSearchView extends ItemView {
 
     // ── Cache ─────────────────────────────────────────────────────────────────
 
-    private rebuildCache() {
+    private async rebuildCache() {
         const { quotesFolder } = this.plugin.settings;
 
-        // Build sermon → quote index once, shared across all entries
         const sermonIndex = this.buildSermonIndex();
 
-        const entries = this.app.vault.getMarkdownFiles()
-            .filter(f => this.inFolder(f.path, quotesFolder))
-            .reduce<QuoteEntry[]>((acc, file) => {
-                const cache = this.app.metadataCache.getFileCache(file);
-                const fm = cache?.frontmatter;
-                if (!fm || fm.type !== 'quote') return acc;
+        const files = this.app.vault.getMarkdownFiles()
+            .filter(f => this.inFolder(f.path, quotesFolder));
 
-                const text = String(fm.quote || '');
-                const authorRaw = Array.isArray(fm.author)
-                    ? fm.author.join(', ')
-                    : String(fm.author || '');
-                const authorClean = authorRaw.replace(/[\[\]]/g, '');
-                const tags: string[] = Array.isArray(fm.tags)
-                    ? fm.tags.map(String)
-                    : fm.tags
-                        ? String(fm.tags).split(/[\s,]+/).filter(Boolean)
-                        : [];
+        const entries: QuoteEntry[] = [];
 
-                const sourceRaw = Array.isArray(fm.source)
-                    ? fm.source.join(', ')
-                    : String(fm.source || '');
-                const sourceClean = sourceRaw.replace(/[\[\]]/g, '');
+        for (const file of files) {
+            const cache = this.app.metadataCache.getFileCache(file);
+            const fm = cache?.frontmatter;
+            if (!fm || fm.type !== 'quote') continue;
 
-                const sermons = sermonIndex.get(file.basename.toLowerCase()) ?? [];
+            // Read the file body (everything after the frontmatter closing ---)
+            // Fall back to fm.quote for any existing files not yet migrated.
+            let text = '';
+            try {
+                const raw = await this.app.vault.read(file);
+                const FM_BODY_RE = new RegExp('^---[\\s\\S]*?---\\n([\\s\\S]*)$');
+                const bodyMatch = raw.match(FM_BODY_RE);
+                const body = bodyMatch ? bodyMatch[1].trim() : '';
+                // Strip the attribution line (starts with —)
+                text = body.split('\n')
+                    .filter(l => !l.trimStart().startsWith('\u2014'))
+                    .join('\n')
+                    .trim();
+            } catch { /* file unreadable */ }
 
-                acc.push({ file, text, authorClean, sourceClean, tags, sermons,
-                    lowerBlob: [text, authorClean, sourceClean, tags.join(' ')].join(' ').toLowerCase() });
-                return acc;
-            }, []);
+            if (!text) continue;
+
+            const authorRaw = Array.isArray(fm.author)
+                ? fm.author.join(', ')
+                : String(fm.author || '');
+            const authorClean = authorRaw.replace(/[\[\]]/g, '');
+
+            const tags: string[] = Array.isArray(fm.tags)
+                ? fm.tags.map(String)
+                : fm.tags
+                    ? String(fm.tags).split(/[\s,]+/).filter(Boolean)
+                    : [];
+
+            const sourceRaw = Array.isArray(fm.source)
+                ? fm.source.join(', ')
+                : String(fm.source || '');
+            const sourceClean = sourceRaw.replace(/[\[\]]/g, '');
+
+            const sermons = sermonIndex.get(file.basename.toLowerCase()) ?? [];
+
+            entries.push({ file, text, authorClean, sourceClean, tags, sermons,
+                lowerBlob: [text, authorClean, sourceClean, tags.join(' ')].join(' ').toLowerCase() });
+        }
 
         // Sort by author (no-author → end), shuffle within same-author groups
         entries.sort((a, b) => {
@@ -266,9 +284,9 @@ class QuoteSearchView extends ItemView {
 
     // ── Rendering ─────────────────────────────────────────────────────────────
 
-    private renderResults(query: string) {
+    private async renderResults(query: string) {
         if (!this.resultsEl) return;
-        if (!this.cacheValid) this.rebuildCache();
+        if (!this.cacheValid) await this.rebuildCache();
         if (this.countEl) this.countEl.setText(`${this.quoteCache.length}`);
 
         const resultsEl = this.resultsEl;
@@ -349,7 +367,7 @@ class QuoteSearchView extends ItemView {
     private scheduleSearchRender(query: string) {
         this.currentQuery = query;
         if (this.searchDebounce) clearTimeout(this.searchDebounce);
-        this.searchDebounce = setTimeout(() => this.renderResults(query), 120);
+        this.searchDebounce = setTimeout(() => { this.renderResults(query); }, 120);
     }
 
     // Only react to changes in the quotes or sermons folders — ignores all
@@ -359,7 +377,7 @@ class QuoteSearchView extends ItemView {
         if (!this.inFolder(file.path, quotesFolder) && !this.inFolder(file.path, sermonsFolder)) return;
         this.invalidateCache();
         if (this.vaultDebounce) clearTimeout(this.vaultDebounce);
-        this.vaultDebounce = setTimeout(() => this.renderResults(this.currentQuery), 800);
+        this.vaultDebounce = setTimeout(() => { this.renderResults(this.currentQuery); }, 800);
     }
 
     // ── File creation ─────────────────────────────────────────────────────────
@@ -372,7 +390,13 @@ class QuoteSearchView extends ItemView {
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
         const yamlSource = source ? `\nsource: "${source}"` : '';
-        const content = `---\ntype: quote\nquote: "${quote.replace(/"/g, '\\"')}"\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}\n\n{{author}} {{source}}`;
+        // Attribution line — strip wikilink brackets for display
+        const authorDisplay = author.replace(/[\[\]]/g, '');
+        const sourceDisplay = source.replace(/[\[\]]/g, '');
+        const attribution = [authorDisplay, sourceDisplay].filter(Boolean).join(' · ');
+        const attributionLine = attribution ? `\n\n— ${attribution}` : '';
+        // No fm.quote property — the body IS the quote, rendered natively by Obsidian embeds
+        const content = `---\ntype: quote\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}${attributionLine}`;
         const fileName = `${Date.now()}`;
         await this.app.vault.create(`${folder}/${fileName}.md`, content);
         this.invalidateCache();
@@ -630,5 +654,133 @@ class QuoteSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.sourcesFolder)
                 .onChange(async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); }));
         this.attachFolderSuggest(s4, async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
+
+        // ── Migration ──────────────────────────────────────────────────────────
+        containerEl.createEl('h3', { text: 'Maintenance' });
+
+        new Setting(containerEl)
+            .setName('Migrate legacy quote files')
+            .setDesc('Moves the quote text from the frontmatter "quote" property into the file body, and removes the property. Run once on existing files. Cannot be undone — back up your vault first.')
+            .addButton(btn => btn
+                .setButtonText('Run migration')
+                .setWarning()
+                .onClick(() => new MigrationConfirmModal(this.app, this.plugin).open()));
+    }
+}
+
+// ─── Migration Modal ──────────────────────────────────────────────────────────
+
+class MigrationConfirmModal extends Modal {
+    plugin: QuoteSearchPlugin;
+
+    constructor(app: App, plugin: QuoteSearchPlugin) {
+        super(app);
+        this.plugin = plugin;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.createEl('h2', { text: 'Migrate legacy quote files?' });
+        contentEl.createEl('p', { text: 'This will update every quote file that still has a "quote" frontmatter property:' });
+        const ul = contentEl.createEl('ul');
+        ul.createEl('li', { text: 'The quote text moves into the file body.' });
+        ul.createEl('li', { text: 'An attribution line (— Author · Source) is appended.' });
+        ul.createEl('li', { text: 'The "quote" frontmatter property is removed.' });
+        ul.createEl('li', { text: 'Files already in the new format are skipped.' });
+        contentEl.createEl('p', { text: '⚠️ This cannot be undone. Make sure your vault is backed up before proceeding.', cls: 'qs-migrate-warning' });
+
+        const btnRow = contentEl.createDiv({ cls: 'qs-migrate-btns' });
+
+        btnRow.createEl('button', { text: 'Cancel' })
+            .addEventListener('click', () => this.close());
+
+        const confirmBtn = btnRow.createEl('button', { text: 'Migrate', cls: 'mod-warning' });
+        confirmBtn.addEventListener('click', async () => {
+            this.close();
+            await this.runMigration();
+        });
+    }
+
+    onClose() { this.contentEl.empty(); }
+
+    private async runMigration() {
+        const { quotesFolder } = this.plugin.settings;
+        const files = this.app.vault.getMarkdownFiles()
+            .filter(f => {
+                // Use same inFolder logic — re-implement inline since it's on the view class
+                const folder = quotesFolder.trim().replace(/\\/g, '/').replace(/\/$/, '');
+                const p = f.path.replace(/\\/g, '/');
+                if (p.startsWith(folder + '/') || p === folder) return true;
+                if (!folder.includes('/')) return p.startsWith(folder + '/') || p.includes('/' + folder + '/');
+                return false;
+            });
+
+        let migrated = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        const progress = new Notice(`Migrating quotes… 0 / ${files.length}`, 0);
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            progress.setMessage(`Migrating quotes… ${i + 1} / ${files.length}`);
+
+            try {
+                const raw = await this.app.vault.read(file);
+
+                // Parse frontmatter block
+                const fmMatch = raw.match(/^(---\n[\s\S]*?\n---)(\n[\s\S]*)$/);
+                if (!fmMatch) { skipped++; continue; }
+
+                const fmBlock = fmMatch[1];
+                const existingBody = fmMatch[2].trimStart();
+
+                // Only migrate files that have a quote property
+                const quoteMatch = fmBlock.match(/^quote:\s*["']?([\s\S]*?)["']?\s*$/m);
+                if (!quoteMatch) { skipped++; continue; }
+
+                // Extract the quote value — handle quoted and unquoted YAML strings
+                let quoteText = fmBlock.match(/^quote:\s*"((?:[^"\\]|\\.)*)"\s*$/m)?.[1]
+                             ?? fmBlock.match(/^quote:\s*'((?:[^'\\]|\\.)*)'\s*$/m)?.[1]
+                             ?? fmBlock.match(/^quote:\s*(.+)$/m)?.[1]
+                             ?? '';
+                quoteText = quoteText.replace(/\\"/g, '"').replace(/\\'/g, "'").trim();
+
+                if (!quoteText) { skipped++; continue; }
+
+                // Build attribution line from existing frontmatter values
+                const authorMatch = fmBlock.match(/^author:\s*"?(.*?)"?\s*$/m);
+                const sourceMatch = fmBlock.match(/^source:\s*"?(.*?)"?\s*$/m);
+                const authorDisplay = (authorMatch?.[1] ?? '').replace(/[\[\]]/g, '').trim();
+                const sourceDisplay = (sourceMatch?.[1] ?? '').replace(/[\[\]]/g, '').trim();
+                const attribution = [authorDisplay, sourceDisplay].filter(Boolean).join(' · ');
+                const attributionLine = attribution ? `\n\n— ${attribution}` : '';
+
+                // Remove the quote property line (and any continuation lines) from frontmatter
+                const newFmBlock = fmBlock
+                    .replace(/^quote:\s*"(?:[^"\\]|\\.)*"\s*\n?/m, '')
+                    .replace(/^quote:\s*'(?:[^'\\]|\\.)*'\s*\n?/m, '')
+                    .replace(/^quote:\s*.+\n?/m, '');
+
+                // Only write the new body if one doesn't already exist
+                const newBody = existingBody.trim()
+                    ? existingBody           // body already present — keep it, just strip fm.quote
+                    : `${quoteText}${attributionLine}`;
+
+                const newContent = `${newFmBlock}\n${newBody}`;
+                await this.app.vault.modify(file, newContent);
+                migrated++;
+
+            } catch (e) {
+                console.error(`[QuoteSearch] Migration failed for ${file.path}:`, e);
+                errors++;
+            }
+        }
+
+        progress.hide();
+
+        const summary = `Migration complete: ${migrated} updated, ${skipped} skipped, ${errors} errors.`;
+        new Notice(summary, 8000);
+        console.log(`[QuoteSearch] ${summary}`);
     }
 }

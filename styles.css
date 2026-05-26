@@ -385,3 +385,17 @@
 .settings-tab-active .qs-suggest-drop {
     min-width: 260px;
 }
+
+/* ── Migration modal ────────────────────────────────────────────────────── */
+
+.qs-migrate-warning {
+    color: var(--text-warning);
+    font-size: 0.85em;
+}
+
+.qs-migrate-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
