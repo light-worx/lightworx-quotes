@@ -707,7 +707,6 @@ class MigrationConfirmModal extends Modal {
         const { quotesFolder } = this.plugin.settings;
         const files = this.app.vault.getMarkdownFiles()
             .filter(f => {
-                // Use same inFolder logic — re-implement inline since it's on the view class
                 const folder = quotesFolder.trim().replace(/\\/g, '/').replace(/\/$/, '');
                 const p = f.path.replace(/\\/g, '/');
                 if (p.startsWith(folder + '/') || p === folder) return true;
@@ -719,68 +718,109 @@ class MigrationConfirmModal extends Modal {
         let skipped = 0;
         let errors = 0;
 
-        const progress = new Notice(`Migrating quotes… 0 / ${files.length}`, 0);
+        const progress = new Notice('Migrating quotes… 0 / ' + files.length, 0);
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            progress.setMessage(`Migrating quotes… ${i + 1} / ${files.length}`);
+            progress.setMessage('Migrating quotes… ' + (i + 1) + ' / ' + files.length);
 
             try {
                 const raw = await this.app.vault.read(file);
 
-                // Parse frontmatter block
-                const fmMatch = raw.match(/^(---\n[\s\S]*?\n---)(\n[\s\S]*)$/);
+                // Split into frontmatter block and body on the closing ---
+                // Handles both \r\n and \n line endings
+                const FM_RE = new RegExp('^(---[\\s\\S]*?\\n---)[\\r\\n]([\\s\\S]*)$');
+                const fmMatch = raw.match(FM_RE);
                 if (!fmMatch) { skipped++; continue; }
 
                 const fmBlock = fmMatch[1];
                 const existingBody = fmMatch[2].trimStart();
 
-                // Only migrate files that have a quote property
-                const quoteMatch = fmBlock.match(/^quote:\s*["']?([\s\S]*?)["']?\s*$/m);
-                if (!quoteMatch) { skipped++; continue; }
+                // Skip files that don't have a quote property at all
+                if (!fmBlock.includes('quote:')) { skipped++; continue; }
 
-                // Extract the quote value — handle quoted and unquoted YAML strings
-                let quoteText = fmBlock.match(/^quote:\s*"((?:[^"\\]|\\.)*)"\s*$/m)?.[1]
-                             ?? fmBlock.match(/^quote:\s*'((?:[^'\\]|\\.)*)'\s*$/m)?.[1]
-                             ?? fmBlock.match(/^quote:\s*(.+)$/m)?.[1]
-                             ?? '';
-                quoteText = quoteText.replace(/\\"/g, '"').replace(/\\'/g, "'").trim();
+                // ── Extract quote text ──────────────────────────────────────
+                // Handles three YAML forms:
+                //   quote: "double quoted"
+                //   quote: 'single quoted'
+                //   quote: bare unquoted value on one line
+                let quoteText = '';
+
+                const dqMatch = fmBlock.match(new RegExp('^quote:\\s*"((?:[^"\\\\]|\\\\.)*)"\\s*$', 'm'));
+                const sqMatch = fmBlock.match(new RegExp("^quote:\\s*'((?:[^'\\\\]|\\\\.)*)'\\s*$", 'm'));
+                const bqMatch = fmBlock.match(new RegExp('^quote:\\s*(.+)$', 'm'));
+
+                if (dqMatch) {
+                    quoteText = dqMatch[1].replace(/\\\\"/g, '"').trim();
+                } else if (sqMatch) {
+                    quoteText = sqMatch[1].replace(/\\\\'/g, "'").trim();
+                } else if (bqMatch) {
+                    quoteText = bqMatch[1].trim();
+                }
 
                 if (!quoteText) { skipped++; continue; }
 
-                // Build attribution line from existing frontmatter values
-                const authorMatch = fmBlock.match(/^author:\s*"?(.*?)"?\s*$/m);
-                const sourceMatch = fmBlock.match(/^source:\s*"?(.*?)"?\s*$/m);
-                const authorDisplay = (authorMatch?.[1] ?? '').replace(/[\[\]]/g, '').trim();
-                const sourceDisplay = (sourceMatch?.[1] ?? '').replace(/[\[\]]/g, '').trim();
+                // ── Extract author ──────────────────────────────────────────
+                // Handles both string and list forms:
+                //   author: "[[Name]]"
+                //   author:\n  - "[[Name]]"
+                let authorDisplay = '';
+                const authorStrMatch = fmBlock.match(new RegExp('^author:\\s*"?(.*?)"?\\s*$', 'm'));
+                const authorListMatch = fmBlock.match(new RegExp('^author:\\s*\\n((?:\\s+-\\s+.*\\n?)+)', 'm'));
+                if (authorListMatch) {
+                    // Collect all list items, strip quotes and brackets
+                    authorDisplay = authorListMatch[1]
+                        .split('\n')
+                        .map((l: string) => l.replace(/^\\s*-\\s*/, '').replace(/[\\[\\]"']/g, '').trim())
+                        .filter(Boolean)
+                        .join(', ');
+                } else if (authorStrMatch && authorStrMatch[1]) {
+                    authorDisplay = authorStrMatch[1].replace(/[\\[\\]]/g, '').trim();
+                }
+
+                // ── Extract source ──────────────────────────────────────────
+                let sourceDisplay = '';
+                const sourceMatch = fmBlock.match(new RegExp('^source:\\s*"?(.*?)"?\\s*$', 'm'));
+                if (sourceMatch?.[1]) {
+                    sourceDisplay = sourceMatch[1].replace(/[\\[\\]]/g, '').trim();
+                }
+
                 const attribution = [authorDisplay, sourceDisplay].filter(Boolean).join(' · ');
-                const attributionLine = attribution ? `\n\n— ${attribution}` : '';
+                const attributionLine = attribution ? '\n\n\u2014 ' + attribution : '';
 
-                // Remove the quote property line (and any continuation lines) from frontmatter
+                // ── Remove quote property from frontmatter ──────────────────
+                // Handles quoted, single-quoted, and bare values
+                const REMOVE_DQ = new RegExp('^quote:\\s*"(?:[^"\\\\]|\\\\.)*"\\s*\\n?', 'm');
+                const REMOVE_SQ = new RegExp("^quote:\\s*'(?:[^'\\\\]|\\\\.)*'\\s*\\n?", 'm');
+                const REMOVE_BQ = new RegExp('^quote:\\s*.+\\n?', 'm');
                 const newFmBlock = fmBlock
-                    .replace(/^quote:\s*"(?:[^"\\]|\\.)*"\s*\n?/m, '')
-                    .replace(/^quote:\s*'(?:[^'\\]|\\.)*'\s*\n?/m, '')
-                    .replace(/^quote:\s*.+\n?/m, '');
+                    .replace(REMOVE_DQ, '')
+                    .replace(REMOVE_SQ, '')
+                    .replace(REMOVE_BQ, '');
 
-                // Only write the new body if one doesn't already exist
-                const newBody = existingBody.trim()
-                    ? existingBody           // body already present — keep it, just strip fm.quote
-                    : `${quoteText}${attributionLine}`;
+                // ── Decide new body ─────────────────────────────────────────
+                // If the existing body is only template placeholders ({{...}})
+                // or is empty, replace it entirely with the quote + attribution.
+                // Otherwise keep the existing body (user may have edited it).
+                const bodyIsTemplate = !existingBody || /^[\\s>*_]*\{\{[^}]+\}\}/.test(existingBody);
+                const newBody = bodyIsTemplate
+                    ? quoteText + attributionLine
+                    : existingBody;
 
-                const newContent = `${newFmBlock}\n${newBody}`;
+                const newContent = newFmBlock + '\n' + newBody;
                 await this.app.vault.modify(file, newContent);
                 migrated++;
 
             } catch (e) {
-                console.error(`[QuoteSearch] Migration failed for ${file.path}:`, e);
+                console.error('[QuoteSearch] Migration failed for ' + file.path + ':', e);
                 errors++;
             }
         }
 
         progress.hide();
 
-        const summary = `Migration complete: ${migrated} updated, ${skipped} skipped, ${errors} errors.`;
+        const summary = 'Migration complete: ' + migrated + ' updated, ' + skipped + ' skipped, ' + errors + ' errors.';
         new Notice(summary, 8000);
-        console.log(`[QuoteSearch] ${summary}`);
+        console.log('[QuoteSearch] ' + summary);
     }
 }

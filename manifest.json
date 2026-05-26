@@ -1,7 +1,7 @@
 {
 	"id": "lightworx-quotes",
 	"name": "Lightworx quotes",
-	"version": "0.9.4",
+	"version": "0.9.5",
 	"minAppVersion": "0.15.0",
 	"description": "Obsidian quotations plugin.",
 	"author": "Michael Bishop",
