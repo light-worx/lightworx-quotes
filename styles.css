@@ -309,6 +309,15 @@
     white-space: nowrap;
 }
 
+.qs-clickable {
+    cursor: pointer;
+}
+
+.qs-clickable:hover {
+    color: var(--text-accent);
+    text-decoration: underline;
+}
+
 .qs-source {
     font-size: 0.72em;
     color: var(--text-faint);

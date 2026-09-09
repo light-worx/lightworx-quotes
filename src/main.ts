@@ -329,8 +329,26 @@ class QuoteSearchView extends ItemView {
                 });
             });
             const attribution = item.createDiv({ cls: 'qs-attribution' });
-            if (authorClean) attribution.createSpan({ text: `— ${authorClean}`, cls: 'qs-author' });
-            if (sourceClean) attribution.createSpan({ text: sourceClean, cls: 'qs-source' });
+            if (authorClean) {
+                const authorEl = attribution.createSpan({ text: `— ${authorClean}`, cls: 'qs-author qs-clickable' });
+                authorEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.searchEl) {
+                        this.searchEl.value = authorClean;
+                        this.searchEl.dispatchEvent(new Event('input'));
+                    }
+                });
+            }
+            if (sourceClean) {
+                const sourceEl = attribution.createSpan({ text: sourceClean, cls: 'qs-source qs-clickable' });
+                sourceEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.searchEl) {
+                        this.searchEl.value = sourceClean;
+                        this.searchEl.dispatchEvent(new Event('input'));
+                    }
+                });
+            }
 
             if (sermons.length > 0) {
                 const last = sermons[0];
@@ -367,7 +385,7 @@ class QuoteSearchView extends ItemView {
     private scheduleSearchRender(query: string) {
         this.currentQuery = query;
         if (this.searchDebounce) clearTimeout(this.searchDebounce);
-        this.searchDebounce = setTimeout(() => { this.renderResults(query); }, 120);
+        this.searchDebounce = setTimeout(async () => { await this.renderResults(query); }, 120);
     }
 
     // Only react to changes in the quotes or sermons folders — ignores all
@@ -377,7 +395,7 @@ class QuoteSearchView extends ItemView {
         if (!this.inFolder(file.path, quotesFolder) && !this.inFolder(file.path, sermonsFolder)) return;
         this.invalidateCache();
         if (this.vaultDebounce) clearTimeout(this.vaultDebounce);
-        this.vaultDebounce = setTimeout(() => { this.renderResults(this.currentQuery); }, 800);
+        this.vaultDebounce = setTimeout(async () => { await this.renderResults(this.currentQuery); }, 800);
     }
 
     // ── File creation ─────────────────────────────────────────────────────────
@@ -495,7 +513,7 @@ class QuoteSearchView extends ItemView {
             qInput.value = ''; aInput.value = ''; sInput.value = ''; tInput.value = '';
             form.addClass('qs-hidden');
             addBtn.setText('+');
-            this.renderResults(this.currentQuery);
+            await this.renderResults(this.currentQuery);
             const embedCode = `![[${fileName}]]`;
             await navigator.clipboard.writeText(embedCode);
             new Notice(`Copied ${embedCode}`);
@@ -525,8 +543,8 @@ class QuoteSearchView extends ItemView {
         });
 
         // Initial render
-        this.rebuildCache();
-        this.renderResults('');
+        await this.rebuildCache();
+        await this.renderResults('');
 
         // Vault listeners — filtered to quotes/sermons folders only
         this.registerEvent(this.app.vault.on('modify', (f) => this.onVaultChange(f as TFile)));
