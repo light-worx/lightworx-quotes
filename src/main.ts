@@ -7,13 +7,19 @@ interface QuoteSearchSettings {
     authorsFolder: string;
     sermonsFolder: string;
     sourcesFolder: string;
+    sermonFilenamePattern: string;
+    quoteType: string;
 }
 
 const DEFAULT_SETTINGS: QuoteSearchSettings = {
     quotesFolder: 'Quotes',
     authorsFolder: 'Authors',
     sermonsFolder: 'Sermons',
-    sourcesFolder: 'Sources'
+    sourcesFolder: 'Sources',
+    // Default matches YYYYMMDDXXX convention, e.g. 20240318CPT
+    // Uses standard JS regex syntax without delimiters
+    sermonFilenamePattern: '^(\\d{4})(\\d{2})(\\d{2})([A-Za-z]{2,5})',
+    quoteType: 'quote'
 }
 
 export default class QuoteSearchPlugin extends Plugin {
@@ -156,9 +162,19 @@ class QuoteSearchView extends ItemView {
         const sermonFiles = this.app.vault.getMarkdownFiles()
             .filter(f => this.inFolder(f.path, this.plugin.settings.sermonsFolder));
 
+        const filenameRe = (() => {
+            try {
+                return new RegExp(this.plugin.settings.sermonFilenamePattern);
+            } catch {
+                // Fall back to default if user entered an invalid regex
+                return new RegExp('^(\d{4})(\d{2})(\d{2})([A-Za-z]{2,5})');
+            }
+        })();
+
         for (const sermon of sermonFiles) {
-            const m = sermon.basename.match(/^(\d{4})(\d{2})(\d{2})([A-Za-z]{2,5})/);
-            if (!m) continue;
+            const m = sermon.basename.match(filenameRe);
+            // Require at least 4 capture groups: year, month, day, place code
+            if (!m || m.length < 5) continue;
 
             const usage: SermonUsage = {
                 date: `${m[1]}-${m[2]}-${m[3]}`,
@@ -212,7 +228,7 @@ class QuoteSearchView extends ItemView {
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
             const fm = cache?.frontmatter;
-            if (!fm || fm.type !== 'quote') continue;
+            if (!fm || fm.type !== this.plugin.settings.quoteType) continue;
 
             // Read the file body (everything after the frontmatter closing ---)
             // Fall back to fm.quote for any existing files not yet migrated.
@@ -414,7 +430,8 @@ class QuoteSearchView extends ItemView {
         const attribution = [authorDisplay, sourceDisplay].filter(Boolean).join(' · ');
         const attributionLine = attribution ? `\n\n— ${attribution}` : '';
         // No fm.quote property — the body IS the quote, rendered natively by Obsidian embeds
-        const content = `---\ntype: quote\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}${attributionLine}`;
+        const quoteType = this.plugin.settings.quoteType;
+        const content = `---\ntype: ${quoteType}\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}${attributionLine}`;
         const fileName = `${Date.now()}`;
         await this.app.vault.create(`${folder}/${fileName}.md`, content);
         this.invalidateCache();
@@ -673,5 +690,39 @@ class QuoteSettingTab extends PluginSettingTab {
                 .onChange(async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); }));
         this.attachFolderSuggest(s4, async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
 
+        containerEl.createEl('h3', { text: 'Quote format' });
+
+        new Setting(containerEl)
+            .setName('Frontmatter type value')
+            .setDesc('The value of the "type" frontmatter property that identifies a quote note. Defaults to "quote". Change this if your vault uses a different convention (e.g. "quotation").')
+            .addText(text => text
+                .setPlaceholder('quote')
+                .setValue(this.plugin.settings.quoteType)
+                .onChange(async (v) => {
+                    this.plugin.settings.quoteType = v.trim() || 'quote';
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Sermon filename pattern')
+            .setDesc('JavaScript regular expression (no delimiters) matching your sermon filenames. Must have 4 capture groups: (year)(month)(day)(place). Default matches YYYYMMDDXXX e.g. 20240318CPT. For "2024-03-18-CPT" use: ^(\\d{4})-(\\d{2})-(\\d{2})-([A-Za-z]+)')
+            .addText(text => {
+                text.setPlaceholder('^(\\d{4})(\\d{2})(\\d{2})([A-Za-z]{2,5})')
+                    .setValue(this.plugin.settings.sermonFilenamePattern)
+                    .onChange(async (v) => {
+                        try {
+                            new RegExp(v.trim());
+                            this.plugin.settings.sermonFilenamePattern = v.trim();
+                            text.inputEl.style.borderColor = '';
+                            await this.plugin.saveSettings();
+                        } catch {
+                            // Highlight red if regex is invalid — don't save
+                            text.inputEl.style.borderColor = 'var(--color-red)';
+                        }
+                    });
+                text.inputEl.style.fontFamily = 'var(--font-monospace)';
+                text.inputEl.style.fontSize = '0.82em';
+                return text;
+            });
     }
 }
