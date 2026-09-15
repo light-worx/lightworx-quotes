@@ -7,7 +7,9 @@ interface QuoteSearchSettings {
     authorsFolder: string;
     sermonsFolder: string;
     sourcesFolder: string;
-    sermonFilenamePattern: string;
+    sermonDateFormat: 'YYYYMMDD' | 'YYYY-MM-DD';
+    sermonPlacePosition: 'after' | 'before';
+    sermonPlaceSeparator: string;
     quoteType: string;
 }
 
@@ -18,7 +20,6 @@ const DEFAULT_SETTINGS: QuoteSearchSettings = {
     sourcesFolder: 'Sources',
     // Default matches YYYYMMDDXXX convention, e.g. 20240318CPT
     // Uses standard JS regex syntax without delimiters
-    sermonFilenamePattern: '^(\\d{4})(\\d{2})(\\d{2})([A-Za-z]{2,5})',
     quoteType: 'quote'
 }
 
@@ -162,25 +163,31 @@ class QuoteSearchView extends ItemView {
         const sermonFiles = this.app.vault.getMarkdownFiles()
             .filter(f => this.inFolder(f.path, this.plugin.settings.sermonsFolder));
 
-        const filenameRe = (() => {
-            try {
-                return new RegExp(this.plugin.settings.sermonFilenamePattern);
-            } catch {
-                // Fall back to default if user entered an invalid regex
-                return new RegExp('^(\d{4})(\d{2})(\d{2})([A-Za-z]{2,5})');
-            }
-        })();
+        const { sermonDateFormat, sermonPlacePosition, sermonPlaceSeparator } = this.plugin.settings;
+        const sep = sermonPlaceSeparator.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); // escape for regex
+        const place = '([A-Za-z0-9]+)';
+
+        // Build date capture groups based on selected format
+        let dateCaptures: string;
+        if (sermonDateFormat === 'YYYY-MM-DD') {
+            dateCaptures = '(\\d{4})-(\\d{2})-(\\d{2})';
+        } else {
+            dateCaptures = '(\\d{4})(\\d{2})(\\d{2})';
+        }
+
+        const pattern = sermonPlacePosition === 'before'
+            ? `^${place}${sep}${dateCaptures}`
+            : `^${dateCaptures}${sep}${place}`;
+        const filenameRe = new RegExp(pattern);
 
         for (const sermon of sermonFiles) {
             const m = sermon.basename.match(filenameRe);
-            // Require at least 4 capture groups: year, month, day, place code
             if (!m || m.length < 5) continue;
 
-            const usage: SermonUsage = {
-                date: `${m[1]}-${m[2]}-${m[3]}`,
-                place: m[4].toUpperCase(),
-                fileName: sermon.basename,
-            };
+            // Group order differs depending on place position
+            const usage: SermonUsage = sermonPlacePosition === 'before'
+                ? { date: `${m[2]}-${m[3]}-${m[4]}`, place: m[1].toUpperCase(), fileName: sermon.basename }
+                : { date: `${m[1]}-${m[2]}-${m[3]}`, place: m[4].toUpperCase(), fileName: sermon.basename };
 
             const cache = this.app.metadataCache.getFileCache(sermon);
             if (!cache) continue;
@@ -704,25 +711,38 @@ class QuoteSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Sermon filename pattern')
-            .setDesc('JavaScript regular expression (no delimiters) matching your sermon filenames. Must have 4 capture groups: (year)(month)(day)(place). Default matches YYYYMMDDXXX e.g. 20240318CPT. For "2024-03-18-CPT" use: ^(\\d{4})-(\\d{2})-(\\d{2})-([A-Za-z]+)')
-            .addText(text => {
-                text.setPlaceholder('^(\\d{4})(\\d{2})(\\d{2})([A-Za-z]{2,5})')
-                    .setValue(this.plugin.settings.sermonFilenamePattern)
-                    .onChange(async (v) => {
-                        try {
-                            new RegExp(v.trim());
-                            this.plugin.settings.sermonFilenamePattern = v.trim();
-                            text.inputEl.style.borderColor = '';
-                            await this.plugin.saveSettings();
-                        } catch {
-                            // Highlight red if regex is invalid — don't save
-                            text.inputEl.style.borderColor = 'var(--color-red)';
-                        }
-                    });
-                text.inputEl.style.fontFamily = 'var(--font-monospace)';
-                text.inputEl.style.fontSize = '0.82em';
-                return text;
-            });
+            .setName('Sermon filename date format')
+            .setDesc('The date format used in your sermon filenames.')
+            .addDropdown(drop => drop
+                .addOption('YYYYMMDD', 'YYYYMMDD  (e.g. 20240318CPT)')
+                .addOption('YYYY-MM-DD', 'YYYY-MM-DD  (e.g. 2024-03-18-CPT)')
+                .setValue(this.plugin.settings.sermonDateFormat)
+                .onChange(async (v: 'YYYYMMDD' | 'YYYY-MM-DD') => {
+                    this.plugin.settings.sermonDateFormat = v;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Place code position')
+            .setDesc('Whether the place code comes before or after the date in the filename.')
+            .addDropdown(drop => drop
+                .addOption('after', 'After the date  (e.g. 20240318CPT)')
+                .addOption('before', 'Before the date  (e.g. CPT20240318)')
+                .setValue(this.plugin.settings.sermonPlacePosition)
+                .onChange(async (v: 'after' | 'before') => {
+                    this.plugin.settings.sermonPlacePosition = v;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Separator between date and place code')
+            .setDesc('Any character between the date and place code. Leave blank if there is none (e.g. 20240318CPT). Use a hyphen for 2024-03-18-CPT.')
+            .addText(text => text
+                .setPlaceholder('none')
+                .setValue(this.plugin.settings.sermonPlaceSeparator)
+                .onChange(async (v) => {
+                    this.plugin.settings.sermonPlaceSeparator = v;
+                    await this.plugin.saveSettings();
+                }));
     }
 }
