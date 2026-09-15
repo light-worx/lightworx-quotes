@@ -165,7 +165,13 @@ class QuoteSearchView extends ItemView {
 
         const { sermonDateFormat, sermonPlacePosition, sermonPlaceSeparator } = this.plugin.settings;
         const sep = sermonPlaceSeparator.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); // escape for regex
-        const place = '([A-Za-z0-9]+)';
+
+        // Place name: must start with a letter to avoid matching date digits,
+        // then allows letters, digits, spaces and hyphens for multi-word names
+        // like "Central", "Central Baptist" or "North-West".
+        // When place comes after the date we anchor with $ so it captures to end.
+        const placeAfter  = '([A-Za-z][A-Za-z0-9 \\-]*)$';
+        const placeBefore = '([A-Za-z][A-Za-z0-9 \\-]*)';
 
         // Build date capture groups based on selected format
         let dateCaptures: string;
@@ -176,8 +182,8 @@ class QuoteSearchView extends ItemView {
         }
 
         const pattern = sermonPlacePosition === 'before'
-            ? `^${place}${sep}${dateCaptures}`
-            : `^${dateCaptures}${sep}${place}`;
+            ? `^${placeBefore}${sep}${dateCaptures}`
+            : `^${dateCaptures}${sep}${placeAfter}`;
         const filenameRe = new RegExp(pattern);
 
         for (const sermon of sermonFiles) {
