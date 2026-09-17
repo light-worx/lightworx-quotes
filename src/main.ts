@@ -246,9 +246,10 @@ class QuoteSearchView extends ItemView {
             if (quoteType && fm?.type && fm.type !== quoteType) continue;
 
             // Read the file body (everything after the frontmatter closing ---)
+            // Normalise line endings first so the regex works on Windows too.
             let text = '';
             try {
-                const raw = await this.app.vault.read(file);
+                const raw = (await this.app.vault.read(file)).replace(/\r\n/g, '\n');
                 const FM_BODY_RE = new RegExp('^---[\\s\\S]*?---\\n([\\s\\S]*)$');
                 const bodyMatch = raw.match(FM_BODY_RE);
                 const body = bodyMatch ? bodyMatch[1].trim() : '';
@@ -259,23 +260,25 @@ class QuoteSearchView extends ItemView {
                     .trim();
             } catch { /* file unreadable */ }
 
-            if (!text) continue;
-
-            const authorRaw = Array.isArray(fm.author)
+            // Guard against null fm (files with no frontmatter)
+            const authorRaw = Array.isArray(fm?.author)
                 ? fm.author.join(', ')
-                : String(fm.author || '');
+                : String(fm?.author || '');
             const authorClean = authorRaw.replace(/[\[\]]/g, '');
 
-            const tags: string[] = Array.isArray(fm.tags)
+            const tags: string[] = Array.isArray(fm?.tags)
                 ? fm.tags.map(String)
-                : fm.tags
+                : fm?.tags
                     ? String(fm.tags).split(/[\s,]+/).filter(Boolean)
                     : [];
 
-            const sourceRaw = Array.isArray(fm.source)
+            const sourceRaw = Array.isArray(fm?.source)
                 ? fm.source.join(', ')
-                : String(fm.source || '');
+                : String(fm?.source || '');
             const sourceClean = sourceRaw.replace(/[\[\]]/g, '');
+
+            // Skip only if there is genuinely nothing to show at all
+            if (!text && !authorClean && !sourceClean && tags.length === 0) continue;
 
             const sermons = sermonIndex.get(file.basename.toLowerCase()) ?? [];
 
