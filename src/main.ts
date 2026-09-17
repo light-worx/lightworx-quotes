@@ -691,13 +691,17 @@ function attachFolderSuggestToInput(app: App, inputEl: HTMLInputElement, onChang
 
     const hide = () => { drop.style.display = 'none'; };
 
-    inputEl.addEventListener('input', () => {
+    const handleInput = () => {
         const val = inputEl.value.trim().toLowerCase();
         if (!val) { hide(); return; }
         const matches = getFolders().filter(f => f.toLowerCase().includes(val)).slice(0, 15);
         if (matches.length === 0) { hide(); return; }
         show(matches);
-    });
+    };
+
+    // Listen on both input and keyup — some Obsidian builds intercept one or the other
+    inputEl.addEventListener('input', handleInput);
+    inputEl.addEventListener('keyup', handleInput);
 
     inputEl.addEventListener('focus', () => {
         const val = inputEl.value.trim().toLowerCase();
@@ -711,6 +715,8 @@ function attachFolderSuggestToInput(app: App, inputEl: HTMLInputElement, onChang
 
     // Clean up when the settings tab closes
     inputEl.addEventListener('remove', () => drop.remove());
+
+    console.log('[QuoteSearch] folder suggest attached to', inputEl);
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
