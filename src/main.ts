@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS: QuoteSearchSettings = {
     sourcesFolder: 'Sources',
     // Default matches YYYYMMDDXXX convention, e.g. 20240318CPT
     // Uses standard JS regex syntax without delimiters
-    quoteType: 'quote'
+    quoteType: ''
 }
 
 export default class QuoteSearchPlugin extends Plugin {
@@ -219,10 +219,6 @@ class QuoteSearchView extends ItemView {
             usages.sort((a, b) => b.date.localeCompare(a.date));
         }
 
-        // Debug: open the developer console (Ctrl+Shift+I) to inspect these
-        console.log(`[QuoteSearch] Sermon index built from ${sermonFiles.length} sermon files`);
-        console.log(`[QuoteSearch] Index keys:`, [...index.keys()]);
-
         return index;
     }
 
@@ -241,10 +237,15 @@ class QuoteSearchView extends ItemView {
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
             const fm = cache?.frontmatter;
-            if (!fm || fm.type !== this.plugin.settings.quoteType) continue;
+
+            // If a quoteType is configured, skip files that have a "type"
+            // property set to something else (e.g. type: sermon). Files with
+            // no "type" property at all are always included — being in the
+            // quotes folder is enough.
+            const quoteType = this.plugin.settings.quoteType.trim();
+            if (quoteType && fm?.type && fm.type !== quoteType) continue;
 
             // Read the file body (everything after the frontmatter closing ---)
-            // Fall back to fm.quote for any existing files not yet migrated.
             let text = '';
             try {
                 const raw = await this.app.vault.read(file);
@@ -706,13 +707,13 @@ class QuoteSettingTab extends PluginSettingTab {
         containerEl.createEl('h3', { text: 'Quote format' });
 
         new Setting(containerEl)
-            .setName('Frontmatter type value')
-            .setDesc('The value of the "type" frontmatter property that identifies a quote note. Defaults to "quote". Change this if your vault uses a different convention (e.g. "quotation").')
+            .setName('Frontmatter type filter (optional)')
+            .setDesc('If set, only notes in the Quotes folder whose "type" frontmatter property matches this value will be shown. Leave blank to include all notes in the Quotes folder regardless of frontmatter. Useful if your Quotes folder contains mixed content.')
             .addText(text => text
-                .setPlaceholder('quote')
+                .setPlaceholder('Leave blank to include all notes')
                 .setValue(this.plugin.settings.quoteType)
                 .onChange(async (v) => {
-                    this.plugin.settings.quoteType = v.trim() || 'quote';
+                    this.plugin.settings.quoteType = v.trim();
                     await this.plugin.saveSettings();
                 }));
 
