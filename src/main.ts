@@ -660,10 +660,12 @@ class FolderSuggest extends AbstractInputSuggest<string> {
         el.setText(folder);
     }
 
-    async selectSuggestion(folder: string) {
-        (this.inputEl as HTMLInputElement).value = folder;
+    selectSuggestion(folder: string) {
+        const input = this.inputEl as HTMLInputElement;
+        input.value = folder;
+        // Trigger Obsidian's onChange handler on the Setting text component
+        input.dispatchEvent(new Event('input'));
         this.close();
-        await this.onChange(folder);
     }
 }
 
