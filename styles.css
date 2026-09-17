@@ -357,10 +357,12 @@
 
 /* ── Settings folder suggest ────────────────────────────────────────────── */
 
-.settings-tab-active .setting-item-control {
-    overflow: visible;
+/* Obsidian clips setting-item-control by default — override so the
+   folder dropdown isn't hidden behind the settings panel edge. */
+.setting-item-control {
+    overflow: visible !important;
 }
 
-.settings-tab-active .qs-suggest-drop {
+.qs-suggest-drop {
     min-width: 260px;
 }
