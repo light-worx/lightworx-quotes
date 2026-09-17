@@ -354,15 +354,3 @@
 .qs-hidden {
     display: none !important;
 }
-
-/* ── Settings folder suggest ────────────────────────────────────────────── */
-
-/* Obsidian clips setting-item-control by default — override so the
-   folder dropdown isn't hidden behind the settings panel edge. */
-.setting-item-control {
-    overflow: visible !important;
-}
-
-.qs-suggest-drop {
-    min-width: 260px;
-}
