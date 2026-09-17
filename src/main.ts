@@ -270,22 +270,36 @@ class QuoteSearchView extends ItemView {
                     .trim();
             } catch { /* file unreadable */ }
 
-            // Guard against null fm (files with no frontmatter)
-            const authorRaw = Array.isArray(fm?.author)
-                ? fm.author.join(', ')
-                : String(fm?.author || '');
-            const authorClean = authorRaw.replace(/[\[\]]/g, '');
+            // Guard against null fm (files with no frontmatter).
+            // stripYaml: removes surrounding quotes added by some YAML writers.
+            // display: also removes [[ ]] brackets for human-readable display.
+            const stripYaml = (v: unknown) =>
+                String(v || '').replace(/^["']|["']$/g, '').trim();
+            const display = (v: unknown) =>
+                stripYaml(v).replace(/[\[\]]/g, '').trim();
+
+            // authorClean is used for display — brackets removed.
+            // authorRaw preserves wikilinks for the search blob so
+            // searching "C.S. Lewis" still matches "[[C.S. Lewis]]".
+            const authorClean = Array.isArray(fm?.author)
+                ? fm.author.map(display).join(', ')
+                : display(fm?.author);
+            const authorSearch = Array.isArray(fm?.author)
+                ? fm.author.map(stripYaml).join(', ')
+                : stripYaml(fm?.author);
 
             const tags: string[] = Array.isArray(fm?.tags)
-                ? fm.tags.map(String)
+                ? fm.tags.map((t: unknown) => display(t)).filter(Boolean)
                 : fm?.tags
-                    ? String(fm.tags).split(/[\s,]+/).filter(Boolean)
+                    ? display(fm.tags).split(/[\s,]+/).filter(Boolean)
                     : [];
 
-            const sourceRaw = Array.isArray(fm?.source)
-                ? fm.source.join(', ')
-                : String(fm?.source || '');
-            const sourceClean = sourceRaw.replace(/[\[\]]/g, '');
+            const sourceClean = Array.isArray(fm?.source)
+                ? fm.source.map(display).join(', ')
+                : display(fm?.source);
+            const sourceSearch = Array.isArray(fm?.source)
+                ? fm.source.map(stripYaml).join(', ')
+                : stripYaml(fm?.source);
 
             // Skip only if there is genuinely nothing to show at all
             if (!text && !authorClean && !sourceClean && tags.length === 0) continue;
@@ -293,7 +307,7 @@ class QuoteSearchView extends ItemView {
             const sermons = sermonIndex.get(file.basename.toLowerCase()) ?? [];
 
             entries.push({ file, text, authorClean, sourceClean, tags, sermons,
-                lowerBlob: [text, authorClean, sourceClean, tags.join(' ')].join(' ').toLowerCase() });
+                lowerBlob: [text, authorSearch, sourceSearch, tags.join(' ')].join(' ').toLowerCase() });
         }
 
         // Sort by author (no-author → end), shuffle within same-author groups
@@ -640,12 +654,17 @@ class QuoteSettingTab extends PluginSettingTab {
         const inputEl = setting.controlEl.querySelector('input') as HTMLInputElement;
         if (!inputEl) return;
 
-        // Wrap input in a relative-positioned container so the dropdown anchors correctly
-        const wrapper = inputEl.parentElement!;
-        wrapper.style.position = 'relative';
-        wrapper.style.flex = '1';
+        // Mount the dropdown on document.body so it escapes any overflow:hidden
+        // parent in the settings panel — same approach Obsidian's own suggests use.
+        const drop = document.body.createDiv({ cls: 'qs-suggest-drop qs-settings-drop qs-hidden' });
 
-        const drop = wrapper.createDiv({ cls: 'qs-suggest-drop qs-hidden' });
+        const reposition = () => {
+            const rect = inputEl.getBoundingClientRect();
+            drop.style.position = 'fixed';
+            drop.style.top = `${rect.bottom + 4}px`;
+            drop.style.left = `${rect.left}px`;
+            drop.style.width = `${rect.width}px`;
+        };
 
         const close = () => drop.addClass('qs-hidden');
 
@@ -660,6 +679,7 @@ class QuoteSettingTab extends PluginSettingTab {
             if (matches.length === 0) { close(); return; }
 
             drop.empty();
+            reposition();
             drop.removeClass('qs-hidden');
             matches.forEach(folder => {
                 const item = drop.createDiv({ text: folder, cls: 'qs-suggest-item' });
@@ -674,6 +694,9 @@ class QuoteSettingTab extends PluginSettingTab {
         });
 
         inputEl.addEventListener('blur', () => setTimeout(close, 150));
+
+        // Clean up the body-mounted dropdown when the settings tab is hidden
+        setting.settingEl.addEventListener('remove', () => drop.remove());
     }
 
     display(): void {
