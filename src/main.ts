@@ -307,8 +307,6 @@ class QuoteSearchView extends ItemView {
 
         this.quoteCache = entries;
         this.cacheValid = true;
-        // TEMP DIAGNOSTIC — remove after confirming fix
-        new Notice(`QuoteSearch: found ${entries.length} quotes in ${files.length} files scanned`, 6000);
     }
 
     private shuffleWithinGroups(entries: QuoteEntry[]) {
