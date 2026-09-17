@@ -110,14 +110,17 @@ class QuoteSearchView extends ItemView {
     private inFolder(filePath: string, folderSetting: string): boolean {
         const folder = folderSetting.trim().replace(/\\/g, '/').replace(/\/$/, '');
         const p = filePath.replace(/\\/g, '/');
+        // Compare case-insensitively so 'quotes' matches 'Quotes' etc.
+        const folderLower = folder.toLowerCase();
+        const pLower = p.toLowerCase();
 
         // Exact prefix match (setting is a full path like "03-Content/Services/Sermons")
-        if (p.startsWith(folder + '/') || p === folder) return true;
+        if (pLower.startsWith(folderLower + '/') || pLower === folderLower) return true;
 
         // Partial name match (setting is just "Sermons" — match as a path segment
         // anywhere in the file path, to support deep vault structures)
         if (!folder.includes('/')) {
-            return p.startsWith(folder + '/') || p.includes('/' + folder + '/');
+            return pLower.startsWith(folderLower + '/') || pLower.includes('/' + folderLower + '/');
         }
 
         return false;
@@ -243,7 +246,11 @@ class QuoteSearchView extends ItemView {
             // no "type" property at all are always included — being in the
             // quotes folder is enough.
             const quoteType = this.plugin.settings.quoteType.trim();
-            if (quoteType && fm?.type && fm.type !== quoteType) continue;
+            // fm.type may be null (bare 'type:' with no value) — treat null
+            // the same as absent. Only exclude if type is a non-null string
+            // that doesn't match the filter.
+            const fileType = fm?.type ?? null;
+            if (quoteType && fileType && String(fileType) !== quoteType) continue;
 
             // Read the file body (everything after the frontmatter closing ---)
             // Normalise line endings first so the regex works on Windows too.
@@ -297,6 +304,8 @@ class QuoteSearchView extends ItemView {
 
         this.quoteCache = entries;
         this.cacheValid = true;
+        // TEMP DIAGNOSTIC — remove after confirming fix
+        new Notice(`QuoteSearch: found ${entries.length} quotes in ${files.length} files scanned`, 6000);
     }
 
     private shuffleWithinGroups(entries: QuoteEntry[]) {
