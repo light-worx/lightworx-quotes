@@ -18,8 +18,9 @@ const DEFAULT_SETTINGS: QuoteSearchSettings = {
     authorsFolder: 'Authors',
     sermonsFolder: 'Sermons',
     sourcesFolder: 'Sources',
-    // Default matches YYYYMMDDXXX convention, e.g. 20240318CPT
-    // Uses standard JS regex syntax without delimiters
+    sermonDateFormat: 'YYYYMMDD',
+    sermonPlacePosition: 'after',
+    sermonPlaceSeparator: '',
     quoteType: ''
 }
 
@@ -166,7 +167,9 @@ class QuoteSearchView extends ItemView {
         const sermonFiles = this.app.vault.getMarkdownFiles()
             .filter(f => this.inFolder(f.path, this.plugin.settings.sermonsFolder));
 
-        const { sermonDateFormat, sermonPlacePosition, sermonPlaceSeparator } = this.plugin.settings;
+        const sermonDateFormat    = this.plugin.settings.sermonDateFormat    ?? 'YYYYMMDD';
+        const sermonPlacePosition  = this.plugin.settings.sermonPlacePosition  ?? 'after';
+        const sermonPlaceSeparator = this.plugin.settings.sermonPlaceSeparator ?? '';
         const sep = sermonPlaceSeparator.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); // escape for regex
 
         // Place name: must start with a letter to avoid matching date digits,
