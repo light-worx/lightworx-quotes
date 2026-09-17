@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile, Notice, AbstractInputSuggest } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, TFile, Notice } from 'obsidian';
 
 export const VIEW_TYPE_QUOTE_SEARCH = "quote-search-view";
 
@@ -622,51 +622,95 @@ class QuoteSearchView extends ItemView {
 
 // ─── Folder Suggest ──────────────────────────────────────────────────────────
 
-class FolderSuggest extends AbstractInputSuggest<string> {
-    private onChange: (value: string) => Promise<void>;
-
-    constructor(app: App, inputEl: HTMLInputElement, onChange: (value: string) => Promise<void>) {
-        super(app, inputEl);
-        this.onChange = onChange;
-    }
-
-    private getFolders(): string[] {
+function attachFolderSuggestToInput(app: App, inputEl: HTMLInputElement, onChange: (v: string) => Promise<void>) {
+    const getFolders = (): string[] => {
         const folders = new Set<string>();
-        // Collect folders from markdown files
-        this.app.vault.getMarkdownFiles().forEach(f => {
+        app.vault.getMarkdownFiles().forEach(f => {
             const parts = f.path.split('/');
             parts.pop();
-            let accumulated = '';
+            let acc = '';
             for (const part of parts) {
-                accumulated = accumulated ? `${accumulated}/${part}` : part;
-                folders.add(accumulated);
+                acc = acc ? `${acc}/${part}` : part;
+                folders.add(acc);
             }
         });
-        // Also include actual folder objects from the vault
-        this.app.vault.getAllLoadedFiles().forEach(f => {
-            if (f.path !== '/') folders.add(f.path.replace(/\/$/, ''));
+        app.vault.getAllLoadedFiles().forEach((f: any) => {
+            if (f.children !== undefined && f.path !== '/') {
+                // It's a folder (TFolder has .children)
+                folders.add(f.path.replace(/\/$/, ''));
+            }
         });
         return [...folders].filter(Boolean).sort((a, b) => a.localeCompare(b));
-    }
+    };
 
-    getSuggestions(query: string): string[] {
-        const lower = query.toLowerCase();
-        return this.getFolders()
-            .filter(f => f.toLowerCase().includes(lower))
-            .slice(0, 15);
-    }
+    // Dropdown appended to body so it escapes any overflow clipping
+    const drop = document.body.createDiv({ cls: 'qs-folder-drop' });
+    drop.style.display = 'none';
+    drop.style.position = 'fixed';
+    drop.style.zIndex = '9999';
+    drop.style.background = 'var(--background-primary-alt)';
+    drop.style.border = '1px solid var(--background-modifier-border-focus)';
+    drop.style.borderRadius = '4px';
+    drop.style.maxHeight = '200px';
+    drop.style.overflowY = 'auto';
+    drop.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
 
-    renderSuggestion(folder: string, el: HTMLElement) {
-        el.setText(folder);
-    }
+    const position = () => {
+        const r = inputEl.getBoundingClientRect();
+        drop.style.top  = `${r.bottom + 2}px`;
+        drop.style.left = `${r.left}px`;
+        drop.style.width = `${r.width}px`;
+    };
 
-    selectSuggestion(folder: string) {
-        const input = this.inputEl as HTMLInputElement;
-        input.value = folder;
-        // Trigger Obsidian's onChange handler on the Setting text component
-        input.dispatchEvent(new Event('input'));
-        this.close();
-    }
+    const show = (folders: string[]) => {
+        drop.empty();
+        folders.forEach(folder => {
+            const item = drop.createDiv({ text: folder });
+            item.style.padding = '6px 10px';
+            item.style.cursor = 'pointer';
+            item.style.fontSize = '0.85em';
+            // pointerdown fires before the input's blur, so the click registers
+            item.addEventListener('pointerdown', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                inputEl.value = folder;
+                drop.style.display = 'none';
+                inputEl.focus();
+                await onChange(folder);
+            });
+            item.addEventListener('mouseover', () => {
+                item.style.background = 'var(--background-modifier-hover)';
+            });
+            item.addEventListener('mouseout', () => {
+                item.style.background = '';
+            });
+        });
+        position();
+        drop.style.display = 'block';
+    };
+
+    const hide = () => { drop.style.display = 'none'; };
+
+    inputEl.addEventListener('input', () => {
+        const val = inputEl.value.trim().toLowerCase();
+        if (!val) { hide(); return; }
+        const matches = getFolders().filter(f => f.toLowerCase().includes(val)).slice(0, 15);
+        if (matches.length === 0) { hide(); return; }
+        show(matches);
+    });
+
+    inputEl.addEventListener('focus', () => {
+        const val = inputEl.value.trim().toLowerCase();
+        if (val) {
+            const matches = getFolders().filter(f => f.toLowerCase().includes(val)).slice(0, 15);
+            if (matches.length > 0) show(matches);
+        }
+    });
+
+    inputEl.addEventListener('blur', () => setTimeout(hide, 200));
+
+    // Clean up when the settings tab closes
+    inputEl.addEventListener('remove', () => drop.remove());
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
@@ -678,7 +722,7 @@ class QuoteSettingTab extends PluginSettingTab {
     private attachFolderSuggest(setting: Setting, onChange: (value: string) => Promise<void>) {
         const inputEl = setting.controlEl.querySelector('input') as HTMLInputElement;
         if (!inputEl) return;
-        new FolderSuggest(this.app, inputEl, onChange);
+        attachFolderSuggestToInput(this.app, inputEl, onChange);
     }
 
     display(): void {
