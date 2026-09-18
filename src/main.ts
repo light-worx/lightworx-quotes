@@ -571,6 +571,19 @@ class QuoteSearchView extends ItemView {
             qInput.value = ''; aInput.value = ''; sInput.value = ''; tInput.value = '';
             form.addClass('qs-hidden');
             addBtn.setText('+');
+            // Wait for Obsidian's metadata cache to index the new file before
+            // rebuilding — otherwise author/source won't appear until next refresh.
+            await new Promise<void>(resolve => {
+                const handler = this.app.metadataCache.on('changed', (changedFile) => {
+                    if (changedFile.basename === fileName) {
+                        this.app.metadataCache.offref(handler);
+                        resolve();
+                    }
+                });
+                // Fallback: resolve after 2s even if the event never fires
+                setTimeout(resolve, 2000);
+            });
+            this.invalidateCache();
             await this.renderResults(this.currentQuery);
             const embedCode = `![[${fileName}]]`;
             await navigator.clipboard.writeText(embedCode);
@@ -622,101 +635,23 @@ class QuoteSearchView extends ItemView {
 
 // ─── Folder Suggest ──────────────────────────────────────────────────────────
 
-function attachFolderSuggestToInput(app: App, inputEl: HTMLInputElement, onChange: (v: string) => Promise<void>) {
-    const getFolders = (): string[] => {
-        const folders = new Set<string>();
-        app.vault.getMarkdownFiles().forEach(f => {
-            const parts = f.path.split('/');
-            parts.pop();
-            let acc = '';
-            for (const part of parts) {
-                acc = acc ? `${acc}/${part}` : part;
-                folders.add(acc);
-            }
-        });
-        app.vault.getAllLoadedFiles().forEach((f: any) => {
-            if (f.children !== undefined && f.path !== '/') {
-                // It's a folder (TFolder has .children)
-                folders.add(f.path.replace(/\/$/, ''));
-            }
-        });
-        return [...folders].filter(Boolean).sort((a, b) => a.localeCompare(b));
-    };
-
-    // Dropdown appended to body so it escapes any overflow clipping
-    const drop = document.body.createDiv({ cls: 'qs-folder-drop' });
-    drop.style.display = 'none';
-    drop.style.position = 'fixed';
-    drop.style.zIndex = '9999';
-    drop.style.background = 'var(--background-primary-alt)';
-    drop.style.border = '1px solid var(--background-modifier-border-focus)';
-    drop.style.borderRadius = '4px';
-    drop.style.maxHeight = '200px';
-    drop.style.overflowY = 'auto';
-    drop.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-
-    const position = () => {
-        const r = inputEl.getBoundingClientRect();
-        drop.style.top  = `${r.bottom + 2}px`;
-        drop.style.left = `${r.left}px`;
-        drop.style.width = `${r.width}px`;
-    };
-
-    const show = (folders: string[]) => {
-        drop.empty();
-        folders.forEach(folder => {
-            const item = drop.createDiv({ text: folder });
-            item.style.padding = '6px 10px';
-            item.style.cursor = 'pointer';
-            item.style.fontSize = '0.85em';
-            // pointerdown fires before the input's blur, so the click registers
-            item.addEventListener('pointerdown', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                inputEl.value = folder;
-                drop.style.display = 'none';
-                inputEl.focus();
-                await onChange(folder);
-            });
-            item.addEventListener('mouseover', () => {
-                item.style.background = 'var(--background-modifier-hover)';
-            });
-            item.addEventListener('mouseout', () => {
-                item.style.background = '';
-            });
-        });
-        position();
-        drop.style.display = 'block';
-    };
-
-    const hide = () => { drop.style.display = 'none'; };
-
-    const handleInput = () => {
-        const val = inputEl.value.trim().toLowerCase();
-        if (!val) { hide(); return; }
-        const matches = getFolders().filter(f => f.toLowerCase().includes(val)).slice(0, 15);
-        if (matches.length === 0) { hide(); return; }
-        show(matches);
-    };
-
-    // Listen on both input and keyup — some Obsidian builds intercept one or the other
-    inputEl.addEventListener('input', handleInput);
-    inputEl.addEventListener('keyup', handleInput);
-
-    inputEl.addEventListener('focus', () => {
-        const val = inputEl.value.trim().toLowerCase();
-        if (val) {
-            const matches = getFolders().filter(f => f.toLowerCase().includes(val)).slice(0, 15);
-            if (matches.length > 0) show(matches);
+function getFolderList(app: App): string[] {
+    const folders = new Set<string>();
+    app.vault.getMarkdownFiles().forEach(f => {
+        const parts = f.path.split('/');
+        parts.pop();
+        let acc = '';
+        for (const part of parts) {
+            acc = acc ? `${acc}/${part}` : part;
+            folders.add(acc);
         }
     });
-
-    inputEl.addEventListener('blur', () => setTimeout(hide, 200));
-
-    // Clean up when the settings tab closes
-    inputEl.addEventListener('remove', () => drop.remove());
-
-    console.log('[QuoteSearch] folder suggest attached to', inputEl);
+    app.vault.getAllLoadedFiles().forEach((f: any) => {
+        if (f.children !== undefined && f.path !== '/') {
+            folders.add(f.path.replace(/\/$/, ''));
+        }
+    });
+    return [...folders].filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
@@ -725,47 +660,81 @@ class QuoteSettingTab extends PluginSettingTab {
     plugin: QuoteSearchPlugin;
     constructor(app: App, plugin: QuoteSearchPlugin) { super(app, plugin); this.plugin = plugin; }
 
+    private addFolderSetting(
+        containerEl: HTMLElement,
+        name: string,
+        desc: string,
+        getValue: () => string,
+        onChange: (v: string) => Promise<void>
+    ) {
+        const setting = new Setting(containerEl).setName(name).setDesc(desc);
+        setting.addText(text => {
+            text.setPlaceholder('Folder path').setValue(getValue());
+            text.onChange(onChange);
+
+            const input = text.inputEl;
+            const drop = document.body.createDiv();
+            drop.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border-focus);border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+
+            const hide = () => { drop.style.display = 'none'; };
+
+            const show = (matches: string[]) => {
+                const r = input.getBoundingClientRect();
+                drop.style.top    = r.bottom + 2 + 'px';
+                drop.style.left   = r.left + 'px';
+                drop.style.width  = r.width + 'px';
+                drop.style.display = 'block';
+                drop.empty();
+                matches.forEach(folder => {
+                    const item = drop.createDiv({ text: folder });
+                    item.style.cssText = 'padding:6px 10px;cursor:pointer;font-size:0.85em';
+                    item.onmouseover = () => item.style.background = 'var(--background-modifier-hover)';
+                    item.onmouseout  = () => item.style.background = '';
+                    item.onpointerdown = (e) => {
+                        e.preventDefault();
+                        input.value = folder;
+                        hide();
+                        onChange(folder);
+                    };
+                });
+            };
+
+            const refresh = () => {
+                const val = input.value.trim().toLowerCase();
+                if (!val) { hide(); return; }
+                const matches = getFolderList(this.app)
+                    .filter(f => f.toLowerCase().includes(val))
+                    .slice(0, 15);
+                matches.length ? show(matches) : hide();
+            };
+
+            input.addEventListener('input',  refresh);
+            input.addEventListener('keyup',  refresh);
+            input.addEventListener('blur', () => setTimeout(hide, 200));
+            setting.settingEl.addEventListener('remove', () => drop.remove());
+        });
+    }
 
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Quote Search Settings' });
 
-        new Setting(containerEl)
-            .setName('Quotes folder')
-            .setDesc('Folder where quote notes are stored.')
-            .addText(text => {
-                text.setPlaceholder('Quotes').setValue(this.plugin.settings.quotesFolder);
-                attachFolderSuggestToInput(this.app, text.inputEl, async (v) => { this.plugin.settings.quotesFolder = v; await this.plugin.saveSettings(); });
-                text.onChange(async (v) => { this.plugin.settings.quotesFolder = v; await this.plugin.saveSettings(); });
-            });
+        this.addFolderSetting(containerEl, 'Quotes folder', 'Folder where quote notes are stored.',
+            () => this.plugin.settings.quotesFolder,
+            async (v) => { this.plugin.settings.quotesFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
-            .setName('Authors folder')
-            .setDesc('Folder containing author notes (used for autocomplete).')
-            .addText(text => {
-                text.setPlaceholder('Authors').setValue(this.plugin.settings.authorsFolder);
-                attachFolderSuggestToInput(this.app, text.inputEl, async (v) => { this.plugin.settings.authorsFolder = v; await this.plugin.saveSettings(); });
-                text.onChange(async (v) => { this.plugin.settings.authorsFolder = v; await this.plugin.saveSettings(); });
-            });
+        this.addFolderSetting(containerEl, 'Authors folder', 'Folder containing author notes (used for autocomplete).',
+            () => this.plugin.settings.authorsFolder,
+            async (v) => { this.plugin.settings.authorsFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
-            .setName('Sermons folder')
-            .setDesc('Folder containing sermon notes (used for usage tracking).')
-            .addText(text => {
-                text.setPlaceholder('Sermons').setValue(this.plugin.settings.sermonsFolder);
-                attachFolderSuggestToInput(this.app, text.inputEl, async (v) => { this.plugin.settings.sermonsFolder = v; await this.plugin.saveSettings(); });
-                text.onChange(async (v) => { this.plugin.settings.sermonsFolder = v; await this.plugin.saveSettings(); });
-            });
+        this.addFolderSetting(containerEl, 'Sermons folder', 'Folder containing sermon notes (used for usage tracking).',
+            () => this.plugin.settings.sermonsFolder,
+            async (v) => { this.plugin.settings.sermonsFolder = v; await this.plugin.saveSettings(); });
 
-        new Setting(containerEl)
-            .setName('Sources folder')
-            .setDesc('Folder containing source notes — books, articles, etc. (used for autocomplete).')
-            .addText(text => {
-                text.setPlaceholder('Sources').setValue(this.plugin.settings.sourcesFolder);
-                attachFolderSuggestToInput(this.app, text.inputEl, async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
-                text.onChange(async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
-            });
+        this.addFolderSetting(containerEl, 'Sources folder', 'Folder containing source notes — books, articles, etc. (used for autocomplete).',
+            () => this.plugin.settings.sourcesFolder,
+            async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
 
         containerEl.createEl('h3', { text: 'Quote format' });
 
