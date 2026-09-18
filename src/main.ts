@@ -674,18 +674,19 @@ class QuoteSettingTab extends PluginSettingTab {
 
             const input = text.inputEl;
 
-            // Mount inside the modal so z-index stacking is correct
-            const modal = containerEl.closest('.modal') as HTMLElement ?? document.body;
-            const drop = modal.createDiv();
-            drop.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border-focus);border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+            // Wrap the input in a relative-positioned container so the
+            // dropdown can use position:absolute and stay in normal DOM flow —
+            // no fixed positioning, no modal hunting, no z-index fights.
+            const wrapper = input.parentElement!;
+            wrapper.style.position = 'relative';
+            wrapper.style.overflow = 'visible';
+
+            const drop = wrapper.createDiv();
+            drop.style.cssText = 'display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border-focus);border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
 
             const hide = () => { drop.style.display = 'none'; };
 
             const show = (matches: string[]) => {
-                const r = input.getBoundingClientRect();
-                drop.style.top    = r.bottom + 2 + 'px';
-                drop.style.left   = r.left + 'px';
-                drop.style.width  = r.width + 'px';
                 drop.style.display = 'block';
                 drop.empty();
                 matches.forEach(folder => {
