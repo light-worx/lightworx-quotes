@@ -673,7 +673,10 @@ class QuoteSettingTab extends PluginSettingTab {
             text.onChange(onChange);
 
             const input = text.inputEl;
-            const drop = document.body.createDiv();
+
+            // Mount inside the modal so z-index stacking is correct
+            const modal = containerEl.closest('.modal') as HTMLElement ?? document.body;
+            const drop = modal.createDiv();
             drop.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border-focus);border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
 
             const hide = () => { drop.style.display = 'none'; };
