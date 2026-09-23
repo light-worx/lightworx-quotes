@@ -248,10 +248,11 @@ class QuoteSearchView extends ItemView {
             // property set to something else (e.g. type: sermon). Files with
             // no "type" property at all are always included — being in the
             // quotes folder is enough.
+            // Skip database/plugin config files (e.g. DB Folder) that
+            // live in the quotes folder but are not quotes.
+            if (fm && ('columns' in fm || 'accessorKey' in fm || 'csvCandidate' in fm)) continue;
+
             const quoteType = this.plugin.settings.quoteType.trim();
-            // fm.type may be null (bare 'type:' with no value) — treat null
-            // the same as absent. Only exclude if type is a non-null string
-            // that doesn't match the filter.
             const fileType = fm?.type ?? null;
             if (quoteType && fileType && String(fileType) !== quoteType) continue;
 
