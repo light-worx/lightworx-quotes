@@ -259,17 +259,37 @@ class QuoteSearchView extends ItemView {
             // Read the file body (everything after the frontmatter closing ---)
             // Normalise line endings first so the regex works on Windows too.
             let text = '';
+            let skipFile = false;
             try {
                 const raw = (await this.app.vault.read(file)).replace(/\r\n/g, '\n');
-                const FM_BODY_RE = new RegExp('^---[\\s\\S]*?---\\n([\\s\\S]*)$');
-                const bodyMatch = raw.match(FM_BODY_RE);
-                const body = bodyMatch ? bodyMatch[1].trim() : '';
-                // Strip the attribution line (starts with —)
-                text = body.split('\n')
-                    .filter(l => !l.trimStart().startsWith('\u2014'))
-                    .join('\n')
-                    .trim();
+
+                // Skip files that have no frontmatter (no --- delimiters) but
+                // whose first several non-empty lines all look like YAML key:value
+                // pairs — these are plugin config files, not quotes.
+                const hasFrontmatter = raw.trimStart().startsWith('---');
+                if (!hasFrontmatter) {
+                    const nonEmptyLines = raw.split('\n')
+                        .map(l => l.trim())
+                        .filter(l => l.length > 0)
+                        .slice(0, 5);
+                    const yamlLineCount = nonEmptyLines
+                        .filter(l => /^[a-zA-Z_][a-zA-Z0-9_]*\s*:/.test(l)).length;
+                    if (yamlLineCount >= 3) skipFile = true;
+                }
+
+                if (!skipFile) {
+                    const FM_BODY_RE = new RegExp('^---[\\s\\S]*?---\\n([\\s\\S]*)$');
+                    const bodyMatch = raw.match(FM_BODY_RE);
+                    const body = bodyMatch ? bodyMatch[1].trim() : '';
+                    // Strip the attribution line (starts with —)
+                    text = body.split('\n')
+                        .filter(l => !l.trimStart().startsWith('\u2014'))
+                        .join('\n')
+                        .trim();
+                }
             } catch { /* file unreadable */ }
+
+            if (skipFile) continue;
 
             // Guard against null fm (files with no frontmatter).
             // stripYaml: removes surrounding quotes added by some YAML writers.
@@ -458,22 +478,35 @@ class QuoteSearchView extends ItemView {
 
     // ── File creation ─────────────────────────────────────────────────────────
 
+    // Wrap a value in [[...]] if it isn't already, and isn't empty.
+    private wikilink(value: string): string {
+        const v = value.trim();
+        if (!v) return '';
+        return v.startsWith('[[') ? v : `[[${v}]]`;
+    }
+
     private async createNewQuoteFile(quote: string, author: string, source: string, tags: string) {
         const folder = this.plugin.settings.quotesFolder;
         if (!(await this.app.vault.adapter.exists(folder))) {
             await this.app.vault.createFolder(folder);
         }
+
+        // Automatically wrap author and source in [[...]] so they become
+        // clickable links in Obsidian. The user doesn't need to type brackets.
+        const authorLinked = this.wikilink(author);
+        const sourceLinked = this.wikilink(source);
+
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
-        const yamlSource = source ? `\nsource: "${source}"` : '';
-        // Attribution line — strip wikilink brackets for display
-        const authorDisplay = author.replace(/[\[\]]/g, '');
-        const sourceDisplay = source.replace(/[\[\]]/g, '');
-        const attribution = [authorDisplay, sourceDisplay].filter(Boolean).join(' · ');
+        const yamlSource = sourceLinked ? `\nsource: "${sourceLinked}"` : '';
+
+        // Attribution line in the body keeps the [[...]] brackets so
+        // Obsidian renders them as clickable links when the note is embedded.
+        const attribution = [authorLinked, sourceLinked].filter(Boolean).join(' · ');
         const attributionLine = attribution ? `\n\n— ${attribution}` : '';
-        // No fm.quote property — the body IS the quote, rendered natively by Obsidian embeds
+
         const quoteType = this.plugin.settings.quoteType;
-        const content = `---\ntype: ${quoteType}\nauthor: "${author}"${yamlSource}${yamlTags}\n---\n${quote}${attributionLine}`;
+        const content = `---\ntype: ${quoteType}\nauthor: "${authorLinked}"${yamlSource}${yamlTags}\n---\n${quote}${attributionLine}`;
         const fileName = `${Date.now()}`;
         await this.app.vault.create(`${folder}/${fileName}.md`, content);
         this.invalidateCache();
