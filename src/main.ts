@@ -478,11 +478,21 @@ class QuoteSearchView extends ItemView {
 
     // ── File creation ─────────────────────────────────────────────────────────
 
-    // Wrap a value in [[...]] if it isn't already, and isn't empty.
-    private wikilink(value: string): string {
+    /**
+     * Wrap a value in a wikilink. If a folder is supplied, the link includes
+     * the full path so Obsidian creates the note in the right place if it
+     * doesn't exist yet: [[Folder/Name|Name]]
+     * If the value already contains [[ it is returned as-is.
+     */
+    private wikilink(value: string, folder?: string): string {
         const v = value.trim();
         if (!v) return '';
-        return v.startsWith('[[') ? v : `[[${v}]]`;
+        if (v.startsWith('[[')) return v;
+        if (folder) {
+            const f = folder.trim().replace(/\/$/, '');
+            return `[[${f}/${v}|${v}]]`;
+        }
+        return `[[${v}]]`;
     }
 
     private async createNewQuoteFile(quote: string, author: string, source: string, tags: string) {
@@ -491,10 +501,10 @@ class QuoteSearchView extends ItemView {
             await this.app.vault.createFolder(folder);
         }
 
-        // Automatically wrap author and source in [[...]] so they become
-        // clickable links in Obsidian. The user doesn't need to type brackets.
-        const authorLinked = this.wikilink(author);
-        const sourceLinked = this.wikilink(source);
+        // Wrap author and source in path-aware wikilinks so that clicking a
+        // non-existent author/source page creates it in the correct folder.
+        const authorLinked = this.wikilink(author, this.plugin.settings.authorsFolder);
+        const sourceLinked = this.wikilink(source, this.plugin.settings.sourcesFolder);
 
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
