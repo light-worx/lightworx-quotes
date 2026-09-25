@@ -296,8 +296,14 @@ class QuoteSearchView extends ItemView {
             // display: also removes [[ ]] brackets for human-readable display.
             const stripYaml = (v: unknown) =>
                 String(v || '').replace(/^["']|["']$/g, '').trim();
-            const display = (v: unknown) =>
-                stripYaml(v).replace(/[\[\]]/g, '').trim();
+            const display = (v: unknown) => {
+                const s = stripYaml(v).replace(/^\[\[|\]\]$/g, '').trim();
+                // [[Folder/Name|Alias]] → Alias
+                // [[Folder/Name]]       → Name (last path segment)
+                if (s.includes('|')) return s.split('|').pop()?.trim() ?? s;
+                if (s.includes('/')) return s.split('/').pop()?.trim() ?? s;
+                return s;
+            };
 
             // authorClean is used for display — brackets removed.
             // authorRaw preserves wikilinks for the search blob so
@@ -507,7 +513,6 @@ class QuoteSearchView extends ItemView {
         // non-existent author/source page creates it in the correct folder.
         const authorLinked = this.wikilink(author, this.plugin.settings.authorsFolder);
         const sourceLinked = this.wikilink(source, this.plugin.settings.sourcesFolder);
-        console.log('[QuoteSearch] wikilinks:', { author, authorLinked, source, sourceLinked, authorsFolder: this.plugin.settings.authorsFolder, sourcesFolder: this.plugin.settings.sourcesFolder });
 
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
