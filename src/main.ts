@@ -485,11 +485,13 @@ class QuoteSearchView extends ItemView {
      * If the value already contains [[ it is returned as-is.
      */
     private wikilink(value: string, folder?: string): string {
-        const v = value.trim();
+        // Strip any existing [[ ]] brackets so we always control the full link
+        const v = value.trim().replace(/^\[\[|\]\]$/g, '').trim();
         if (!v) return '';
-        if (v.startsWith('[[')) return v;
         if (folder) {
             const f = folder.trim().replace(/\/$/, '');
+            // Use [[Folder/Name|Name]] format so the display text is clean
+            // and Obsidian knows exactly where to create the file if it doesn't exist
             return `[[${f}/${v}|${v}]]`;
         }
         return `[[${v}]]`;
@@ -505,6 +507,7 @@ class QuoteSearchView extends ItemView {
         // non-existent author/source page creates it in the correct folder.
         const authorLinked = this.wikilink(author, this.plugin.settings.authorsFolder);
         const sourceLinked = this.wikilink(source, this.plugin.settings.sourcesFolder);
+        console.log('[QuoteSearch] wikilinks:', { author, authorLinked, source, sourceLinked, authorsFolder: this.plugin.settings.authorsFolder, sourcesFolder: this.plugin.settings.sourcesFolder });
 
         const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
         const yamlTags = tagList.length > 0 ? `\ntags:\n  - ${tagList.join('\n  - ')}` : '';
