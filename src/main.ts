@@ -11,6 +11,7 @@ interface QuoteSearchSettings {
     sermonPlacePosition: 'after' | 'before';
     sermonPlaceSeparator: string;
     quoteType: string;
+    hideEmbedTitle: boolean;
 }
 
 const DEFAULT_SETTINGS: QuoteSearchSettings = {
@@ -21,7 +22,8 @@ const DEFAULT_SETTINGS: QuoteSearchSettings = {
     sermonDateFormat: 'YYYYMMDD',
     sermonPlacePosition: 'after',
     sermonPlaceSeparator: '',
-    quoteType: ''
+    quoteType: '',
+    hideEmbedTitle: true
 }
 
 export default class QuoteSearchPlugin extends Plugin {
@@ -32,6 +34,15 @@ export default class QuoteSearchPlugin extends Plugin {
         this.registerView(VIEW_TYPE_QUOTE_SEARCH, (leaf) => new QuoteSearchView(leaf, this));
         this.addRibbonIcon("quote-glyph", "Open Quote Search", () => this.activateView());
         this.addSettingTab(new QuoteSettingTab(this.app, this));
+        this.applyEmbedTitleSetting();
+    }
+
+    applyEmbedTitleSetting() {
+        document.body.toggleClass('qs-hide-embed-title', this.settings.hideEmbedTitle);
+    }
+
+    async onunload() {
+        document.body.removeClass('qs-hide-embed-title');
     }
 
     async activateView() {
@@ -791,6 +802,19 @@ class QuoteSettingTab extends PluginSettingTab {
         this.addFolderSetting(containerEl, 'Sources folder', 'Folder containing source notes — books, articles, etc. (used for autocomplete).',
             () => this.plugin.settings.sourcesFolder,
             async (v) => { this.plugin.settings.sourcesFolder = v; await this.plugin.saveSettings(); });
+
+        containerEl.createEl('h3', { text: 'Appearance' });
+
+        new Setting(containerEl)
+            .setName('Hide embed title')
+            .setDesc('Hide the filename title (e.g. "2103041746") when a quote is embedded in a note. Enabled by default.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.hideEmbedTitle)
+                .onChange(async (v) => {
+                    this.plugin.settings.hideEmbedTitle = v;
+                    await this.plugin.saveSettings();
+                    this.plugin.applyEmbedTitleSetting();
+                }));
 
         containerEl.createEl('h3', { text: 'Quote format' });
 

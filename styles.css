@@ -354,3 +354,11 @@
 .qs-hidden {
     display: none !important;
 }
+
+
+
+/* ── Hide embed title ───────────────────────────────────────────────────── */
+
+.qs-hide-embed-title .embed-title.markdown-embed-title {
+    display: none !important;
+}
